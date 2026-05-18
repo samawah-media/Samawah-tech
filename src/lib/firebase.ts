@@ -24,6 +24,7 @@ export let auth: Auth | null = null;
 export let storage: FirebaseStorage | null = null;
 let configuredAdminEmails: string[] = [];
 const firebaseEnv = import.meta.env;
+
 type FirebaseJsonConfig = {
   apiKey: string;
   authDomain: string;
@@ -35,6 +36,7 @@ type FirebaseJsonConfig = {
   adminEmails?: string[];
   firestoreDatabaseId?: string;
 };
+
 const adminEmails = (firebaseEnv.VITE_ADMIN_EMAILS || '')
   .split(',')
   .map((email: string) => email.trim().toLowerCase())
@@ -42,16 +44,20 @@ const adminEmails = (firebaseEnv.VITE_ADMIN_EMAILS || '')
 
 function hasBrokenArabic(value?: string | null): boolean {
   if (!value) return false;
-  return value.includes('???') || /[ØÙÃÂ]/.test(value);
+  return value.includes('???') || /[ØÙÃƒÃ‚]/.test(value);
 }
 
 function repairProjectText(project: ProjectCard): ProjectCard {
   const fallback = SEED_PROJECTS.find((item) => item.id === project.id || item.slug === project.slug);
   if (!fallback) return project;
-  const normalizedProject =
-    project.slug === 'ratbha-ai' && project.cover_image_url === '/projects/kharbasha.png'
-      ? { ...project, cover_image_url: fallback.cover_image_url }
-      : project;
+
+  const shouldUseSeedCover =
+    ['sadeed', 'inviteauto', 'ratbha-ai'].includes(project.slug) &&
+    project.cover_image_url.startsWith('/projects/') &&
+    project.cover_image_url !== fallback.cover_image_url;
+  const normalizedProject = shouldUseSeedCover
+    ? { ...project, cover_image_url: fallback.cover_image_url }
+    : project;
 
   if (
     hasBrokenArabic(normalizedProject.title_ar) ||
@@ -119,9 +125,9 @@ function mergeLinks(base: ShowcaseLink[], local: ShowcaseLink[]) {
 
 async function initFirebase() {
   if (app) return;
-  
+
   try {
-    // @ts-ignore
+    // @ts-ignore JSON config is generated for the deployed app.
     const config = await import(/* @vite-ignore */ '../../firebase-applet-config.json');
     const firebaseConfig = config.default as FirebaseJsonConfig;
 
@@ -130,18 +136,18 @@ async function initFirebase() {
           .map((email: string) => email.trim().toLowerCase())
           .filter(Boolean)
       : [];
-    
-      if (firebaseConfig && firebaseConfig.apiKey !== 'DUMMY') {
-        app = initializeApp(firebaseConfig);
-        db = firebaseConfig.firestoreDatabaseId 
-          ? getFirestore(app, firebaseConfig.firestoreDatabaseId) 
-          : getFirestore(app);
-        auth = getAuth(app);
-        storage = getStorage(app);
-        await setPersistence(auth, browserLocalPersistence);
-      }
-  } catch (e) {
-    console.warn('Firebase config not loaded, using seed data.');
+
+    if (firebaseConfig && firebaseConfig.apiKey !== 'DUMMY') {
+      app = initializeApp(firebaseConfig);
+      db = firebaseConfig.firestoreDatabaseId
+        ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+        : getFirestore(app);
+      auth = getAuth(app);
+      storage = getStorage(app);
+      await setPersistence(auth, browserLocalPersistence);
+    }
+  } catch (error) {
+    console.warn('Firebase config not loaded, using seed data.', error);
   }
 }
 
@@ -160,7 +166,7 @@ export async function getProjects(): Promise<ProjectCard[]> {
     const q = query(collection(db, 'projects'), orderBy('sort_order', 'asc'));
     const snapshot = await getDocs(q);
     const projects = snapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as ProjectCard))
+      .map((docRef) => ({ id: docRef.id, ...docRef.data() } as ProjectCard))
       .map(repairProjectText);
     return mergeProjects(mergeProjects(SEED_PROJECTS, projects), localProjects);
   } catch (error) {
@@ -201,8 +207,7 @@ export async function getShowcaseLinkBySlug(slug: string): Promise<ShowcaseLink 
   }
 
   const links = await getShowcaseLinks();
-  const found = links.find((link) => link.slug === slug);
-  return found || null;
+  return links.find((link) => link.slug === slug) || null;
 }
 
 export function isFirebaseReady(): boolean {

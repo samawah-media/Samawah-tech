@@ -1,37 +1,28 @@
-import { useState, useEffect, useCallback, type MouseEvent } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { ExternalLink, ChevronRight, Share2, Check } from 'lucide-react';
-import { ProjectCard } from '../types';
+import { useCallback, useEffect, useState, type MouseEvent } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { ArrowUpLeft, Check, ChevronRight, ExternalLink, Share2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { ProjectCard } from '../types';
+
+export type ShowcaseMode = 'grid' | 'list' | 'cards';
+
+interface ShowcaseCarouselProps {
+  projects: ProjectCard[];
+  mode?: ShowcaseMode;
+}
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-interface ShowcaseCarouselProps {
-  projects: ProjectCard[];
-}
-
-export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [direction, setDirection] = useState(0);
+export default function ShowcaseCarousel({ projects, mode = 'grid' }: ShowcaseCarouselProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const next = useCallback(() => {
-    if (projects.length === 0) return;
-    setDirection(1);
-    setCurrentIndex((prev) => (prev + 1) % projects.length);
-  }, [projects.length]);
-
-  const prev = useCallback(() => {
-    if (projects.length === 0) return;
-    setDirection(-1);
-    setCurrentIndex((prev) => (prev - 1 + projects.length) % projects.length);
-  }, [projects.length]);
-
   const handleShare = async (event: MouseEvent, project: ProjectCard) => {
+    event.preventDefault();
     event.stopPropagation();
+
     const shareData = {
       title: project.title_ar,
       text: project.short_description_ar,
@@ -52,11 +43,183 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
     try {
       await navigator.clipboard.writeText(project.project_url);
       setCopiedId(project.id);
-      setTimeout(() => setCopiedId(null), 2000);
+      window.setTimeout(() => setCopiedId(null), 2000);
     } catch (error) {
       console.error('Error copying to clipboard:', error);
     }
   };
+
+  if (projects.length === 0) {
+    return (
+      <div className="min-h-[420px] flex items-center justify-center px-6 text-center" dir="rtl">
+        <div>
+          <h2 className="text-2xl font-black text-white">لا توجد مشاريع متاحة الآن</h2>
+          <p className="mt-3 text-white/50">يمكن إضافة مشاريع جديدة من لوحة الإدارة.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'list') {
+    return <ProjectList projects={projects} onShare={handleShare} copiedId={copiedId} />;
+  }
+
+  if (mode === 'cards') {
+    return <ProjectCards projects={projects} onShare={handleShare} copiedId={copiedId} />;
+  }
+
+  return <ProjectGrid projects={projects} onShare={handleShare} copiedId={copiedId} />;
+}
+
+function ProjectGrid({
+  projects,
+  onShare,
+  copiedId,
+}: {
+  projects: ProjectCard[];
+  onShare: (event: MouseEvent, project: ProjectCard) => void;
+  copiedId: string | null;
+}) {
+  return (
+    <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-px overflow-hidden bg-white/10 sm:grid-cols-2 xl:grid-cols-4">
+      {projects.map((project, index) => (
+        <motion.a
+          key={project.id}
+          href={project.project_url}
+          target="_blank"
+          rel="noreferrer"
+          initial={{ opacity: 0, y: 28 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.55, delay: Math.min(index * 0.05, 0.35), ease: 'easeOut' }}
+          className="group relative block min-h-[360px] overflow-hidden bg-black outline-none focus-visible:ring-2 focus-visible:ring-white md:min-h-[430px]"
+        >
+          <img
+            src={project.cover_image_url}
+            alt={project.title_ar}
+            className="absolute inset-0 h-full w-full object-cover opacity-90 transition duration-700 group-hover:scale-105 group-hover:opacity-100 group-hover:brightness-[0.45] group-focus-visible:scale-105 group-focus-visible:brightness-[0.45]"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-75 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+          <div className="absolute inset-0 bg-black/20 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+
+          <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
+            <span className="border border-white/25 bg-black/25 px-3 py-1 text-[11px] font-bold text-white/80 backdrop-blur-md">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <button
+              type="button"
+              onClick={(event) => onShare(event, project)}
+              className="grid h-10 w-10 place-items-center border border-white/25 bg-black/25 text-white backdrop-blur-md transition-colors hover:bg-white hover:text-black"
+              aria-label={`مشاركة ${project.title_ar}`}
+            >
+              {copiedId === project.id ? <Check size={18} /> : <Share2 size={18} />}
+            </button>
+          </div>
+
+          <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
+            <div className="mb-4 flex flex-wrap items-center gap-2 opacity-90">
+              <span className="bg-white px-3 py-1 text-[11px] font-black text-black">
+                {project.category}
+              </span>
+              {project.tags.slice(0, 2).map((tag) => (
+                <span key={tag} className="text-[11px] font-bold text-white/70">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+            <h3 className="text-3xl font-black leading-tight text-white md:text-4xl">
+              {project.title_ar}
+            </h3>
+            <p className="mt-3 max-h-0 overflow-hidden text-sm leading-7 text-white/0 transition-all duration-500 group-hover:max-h-32 group-hover:text-white/85 group-focus-visible:max-h-32 group-focus-visible:text-white/85">
+              {project.short_description_ar}
+            </p>
+            <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-white">
+              فتح المشروع
+              <ArrowUpLeft size={18} />
+            </span>
+          </div>
+        </motion.a>
+      ))}
+    </div>
+  );
+}
+
+function ProjectList({
+  projects,
+  onShare,
+  copiedId,
+}: {
+  projects: ProjectCard[];
+  onShare: (event: MouseEvent, project: ProjectCard) => void;
+  copiedId: string | null;
+}) {
+  return (
+    <div className="mx-auto max-w-[1500px] border-y border-white/10">
+      {projects.map((project, index) => (
+        <motion.a
+          key={project.id}
+          href={project.project_url}
+          target="_blank"
+          rel="noreferrer"
+          initial={{ opacity: 0, y: 18 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.45, delay: Math.min(index * 0.04, 0.28) }}
+          className="group grid gap-5 border-b border-white/10 px-2 py-6 transition-colors hover:bg-white hover:text-black md:grid-cols-[90px_1fr_220px_56px] md:items-center md:px-4 md:py-8"
+        >
+          <span className="text-sm font-black text-white/35 transition-colors group-hover:text-black/45">
+            {String(index + 1).padStart(2, '0')}
+          </span>
+          <div>
+            <h3 className="text-3xl font-black leading-tight md:text-5xl">{project.title_ar}</h3>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-white/55 transition-colors group-hover:text-black/60">
+              {project.short_description_ar}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 md:justify-end">
+            <span className="border border-white/15 px-3 py-1 text-xs font-bold text-white/60 transition-colors group-hover:border-black/15 group-hover:text-black/60">
+              {project.category}
+            </span>
+            <button
+              type="button"
+              onClick={(event) => onShare(event, project)}
+              className="grid h-8 w-8 place-items-center border border-white/15 text-white/70 transition-colors hover:bg-black hover:text-white group-hover:border-black/15 group-hover:text-black"
+              aria-label={`مشاركة ${project.title_ar}`}
+            >
+              {copiedId === project.id ? <Check size={15} /> : <Share2 size={15} />}
+            </button>
+          </div>
+          <span className="grid h-12 w-12 place-items-center border border-white/20 transition-colors group-hover:border-black group-hover:bg-black group-hover:text-white">
+            <ArrowUpLeft size={22} />
+          </span>
+        </motion.a>
+      ))}
+    </div>
+  );
+}
+
+function ProjectCards({
+  projects,
+  onShare,
+  copiedId,
+}: {
+  projects: ProjectCard[];
+  onShare: (event: MouseEvent, project: ProjectCard) => void;
+  copiedId: string | null;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
+
+  const next = useCallback(() => {
+    setDirection(1);
+    setCurrentIndex((prev) => (prev + 1) % projects.length);
+  }, [projects.length]);
+
+  const prev = useCallback(() => {
+    setDirection(-1);
+    setCurrentIndex((prev) => (prev - 1 + projects.length) % projects.length);
+  }, [projects.length]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -81,30 +244,19 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
 
     const isActive = offset === 0;
     const isVisible = Math.abs(offset) <= 2;
-    const x = offset * 330;
-    const scale = isActive ? 1.08 : 0.78 - Math.abs(offset) * 0.04;
-    const rotate = offset * 10;
-    const opacity = isActive ? 1 : 0.42 - Math.abs(offset) * 0.08;
+    const x = offset * 310;
+    const scale = isActive ? 1 : 0.78 - Math.abs(offset) * 0.04;
+    const rotate = offset * 6;
+    const opacity = isActive ? 1 : 0.38 - Math.abs(offset) * 0.08;
     const zIndex = 10 - Math.abs(offset);
-    const y = isActive ? -42 : 54 + Math.abs(offset) * 18;
+    const y = isActive ? -18 : 42 + Math.abs(offset) * 16;
 
     return { x, scale, rotate, opacity, zIndex, y, isVisible, isActive };
   };
 
-  if (projects.length === 0) {
-    return (
-      <div className="min-h-[420px] flex items-center justify-center px-6 text-center" dir="rtl">
-        <div>
-          <h2 className="text-2xl font-black text-slate-900">لا توجد مشاريع متاحة الآن</h2>
-          <p className="mt-3 text-slate-500">يمكن إضافة مشاريع جديدة من لوحة الإدارة.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="relative w-full h-[500px] md:h-[700px] flex flex-col items-center justify-center overflow-hidden py-2 md:py-8" dir="rtl">
-      <div className="relative w-full max-w-7xl h-full flex items-center justify-center">
+    <div className="relative mx-auto flex h-[560px] max-w-[1500px] flex-col items-center justify-center overflow-hidden md:h-[720px]" dir="rtl">
+      <div className="relative flex h-full w-full items-center justify-center">
         <AnimatePresence initial={false} custom={direction}>
           {projects.map((project, index) => {
             const { x, scale, rotate, opacity, zIndex, y, isVisible, isActive } = getCardStyles(index);
@@ -115,92 +267,64 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
                 key={project.id}
                 initial={false}
                 animate={{ x, scale, rotate, opacity, zIndex, y }}
-                whileHover={{
-                  y: y - 22,
-                  scale: scale * 1.04,
-                  rotate: rotate * 0.45,
-                  transition: { duration: 0.2, ease: 'easeOut' },
-                }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 430,
-                  damping: 30,
-                  mass: 0.8,
-                }}
+                whileHover={{ y: y - 16, scale: scale * 1.025, transition: { duration: 0.18 } }}
+                transition={{ type: 'spring', stiffness: 360, damping: 32, mass: 0.8 }}
                 className={cn(
-                  'absolute flex flex-col w-[90vw] md:w-[84vw] max-w-[550px] aspect-[16/9] rounded-[22px] md:rounded-[28px] overflow-hidden cursor-pointer bg-white transition-shadow duration-300 group/card',
-                  isActive
-                    ? 'shadow-[0_40px_90px_-18px_rgba(15,23,42,0.45)] ring-8 ring-white'
-                    : 'shadow-xl grayscale-[35%] hover:grayscale-0',
+                  'absolute w-[88vw] max-w-[600px] aspect-[16/10] overflow-hidden bg-black shadow-2xl ring-1 ring-white/15 group/card',
+                  isActive ? 'cursor-pointer' : 'cursor-default grayscale-[30%]',
                 )}
                 onClick={() => {
                   if (isActive) {
-                    window.open(project.project_url, '_blank');
+                    window.open(project.project_url, '_blank', 'noopener,noreferrer');
                     return;
                   }
                   setCurrentIndex(index);
                 }}
               >
-                <div className="relative w-full h-full overflow-hidden bg-slate-900">
-                  <motion.img
-                    src={project.cover_image_url}
-                    alt={project.title_ar}
-                    className="w-full h-full object-cover transition-[filter,transform] duration-500 group-hover/card:scale-105 group-hover/card:brightness-[0.58]"
-                    referrerPolicy="no-referrer"
-                  />
+                <img
+                  src={project.cover_image_url}
+                  alt={project.title_ar}
+                  className="h-full w-full object-cover transition duration-700 group-hover/card:scale-105 group-hover/card:brightness-[0.5]"
+                  referrerPolicy="no-referrer"
+                />
+                <div
+                  className={cn(
+                    'absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/10 transition-opacity duration-300',
+                    isActive ? 'opacity-100' : 'opacity-0 group-hover/card:opacity-100',
+                  )}
+                />
 
-                  <div
-                    className={cn(
-                      'absolute inset-0 bg-gradient-to-t from-black/95 via-black/55 to-black/10 transition-opacity duration-300',
-                      isActive ? 'opacity-100' : 'opacity-0 group-hover/card:opacity-100',
-                    )}
-                  />
+                <button
+                  type="button"
+                  onClick={(event) => onShare(event, project)}
+                  className={cn(
+                    'absolute left-5 top-5 z-40 grid h-11 w-11 place-items-center border border-white/25 bg-black/30 text-white backdrop-blur-xl transition-colors hover:bg-white hover:text-black',
+                    isActive ? 'opacity-100' : 'opacity-0 group-hover/card:opacity-100',
+                  )}
+                  aria-label={`مشاركة ${project.title_ar}`}
+                >
+                  {copiedId === project.id ? <Check size={20} /> : <Share2 size={20} />}
+                </button>
 
-                  <button
-                    onClick={(event) => handleShare(event, project)}
-                    className={cn(
-                      'absolute top-5 left-5 w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-xl border border-white/25 text-white flex items-center justify-center transition-all duration-200 hover:bg-white hover:text-slate-950 hover:scale-105 active:scale-95 z-50',
-                      isActive ? 'opacity-100' : 'opacity-0 group-hover/card:opacity-100',
-                    )}
-                    aria-label="مشاركة المشروع"
-                  >
-                    {copiedId === project.id ? <Check size={20} /> : <Share2 size={20} />}
-                  </button>
-
-                  <div
-                    className={cn(
-                      'absolute inset-x-0 bottom-0 z-20 p-4 md:p-8 translate-y-5 transition-all duration-300',
-                      isActive ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover/card:opacity-100 group-hover/card:translate-y-0',
-                    )}
-                  >
-                    <div className="flex flex-wrap items-center gap-2 mb-3">
-                      <span className="px-3 py-1 text-[11px] font-bold bg-white text-slate-950 rounded-full">
-                        {project.category}
-                      </span>
-                      {project.tags.slice(0, 3).map((tag) => (
-                        <span key={tag} className="hidden sm:inline text-[11px] font-semibold text-white/85">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-
-                    <h3 className="text-xl sm:text-2xl md:text-4xl font-black text-white leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)]">
-                      {project.title_ar}
-                    </h3>
-                    <p className="mt-2 text-white/90 text-xs sm:text-sm md:text-base leading-6 md:leading-7 max-w-xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-                      {project.short_description_ar}
-                    </p>
-
-                    <div className="mt-3 md:mt-5 flex items-center justify-between gap-4">
-                      <span className="inline-flex items-center gap-2 text-white text-sm md:text-base font-bold">
-                        عرض المشروع
-                        <ExternalLink size={17} />
-                      </span>
-                      <span className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-slate-950 shadow-lg">
-                        <ChevronRight size={24} />
-                      </span>
-                    </div>
-                  </div>
+                <div
+                  className={cn(
+                    'absolute inset-x-0 bottom-0 z-20 p-5 transition-all duration-300 md:p-8',
+                    isActive ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 group-hover/card:translate-y-0 group-hover/card:opacity-100',
+                  )}
+                >
+                  <span className="inline-flex bg-white px-3 py-1 text-[11px] font-black text-black">
+                    {project.category}
+                  </span>
+                  <h3 className="mt-4 text-3xl font-black leading-tight text-white md:text-5xl">
+                    {project.title_ar}
+                  </h3>
+                  <p className="mt-3 max-w-xl text-sm leading-7 text-white/82 md:text-base">
+                    {project.short_description_ar}
+                  </p>
+                  <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-white">
+                    عرض المشروع
+                    <ExternalLink size={17} />
+                  </span>
                 </div>
               </motion.article>
             );
@@ -208,56 +332,45 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
         </AnimatePresence>
       </div>
 
-      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 hidden md:flex justify-between px-10 pointer-events-none z-50">
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 z-50 hidden -translate-y-1/2 justify-between px-3 md:flex">
         <button
+          type="button"
           onClick={(event) => {
             event.stopPropagation();
             prev();
           }}
-          className="pointer-events-auto rounded-full bg-white/95 p-2 shadow-lg ring-1 ring-slate-200/80 transition-transform active:scale-95 md:bg-transparent md:shadow-none md:ring-0 group"
+          className="pointer-events-auto grid h-14 w-14 place-items-center border border-white/20 bg-black/35 text-white backdrop-blur-xl transition-colors hover:bg-white hover:text-black"
           aria-label="السابق"
         >
-          <PixelArrow direction="left" />
+          <ChevronRight size={26} className="rotate-180" />
         </button>
         <button
+          type="button"
           onClick={(event) => {
             event.stopPropagation();
             next();
           }}
-          className="pointer-events-auto rounded-full bg-white/95 p-2 shadow-lg ring-1 ring-slate-200/80 transition-transform active:scale-95 md:bg-transparent md:shadow-none md:ring-0 group"
+          className="pointer-events-auto grid h-14 w-14 place-items-center border border-white/20 bg-black/35 text-white backdrop-blur-xl transition-colors hover:bg-white hover:text-black"
           aria-label="التالي"
         >
-          <PixelArrow direction="right" />
+          <ChevronRight size={26} />
         </button>
       </div>
 
-      <div className="mt-4 md:mt-10 flex gap-2">
+      <div className="absolute bottom-4 flex gap-2 md:bottom-8">
         {projects.map((project, index) => (
           <button
             key={project.id}
+            type="button"
             onClick={() => setCurrentIndex(index)}
             className={cn(
-              'h-1.5 transition-all duration-300 rounded-full',
-              index === currentIndex ? 'w-8 bg-brand-blue' : 'w-2 bg-slate-300 hover:bg-slate-400',
+              'h-1.5 transition-all duration-300',
+              index === currentIndex ? 'w-8 bg-white' : 'w-2 bg-white/25 hover:bg-white/60',
             )}
             aria-label={`عرض ${project.title_ar}`}
           />
         ))}
       </div>
     </div>
-  );
-}
-
-function PixelArrow({ direction }: { direction: 'left' | 'right' }) {
-  return (
-    <ChevronRight
-      size={28}
-      strokeWidth={2.7}
-      className={cn(
-        'text-slate-900 transition-colors duration-200 group-hover:text-brand-blue md:h-12 md:w-12',
-        direction === 'left' ? 'rotate-180' : '',
-      )}
-      aria-hidden="true"
-    />
   );
 }
