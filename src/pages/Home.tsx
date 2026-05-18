@@ -91,8 +91,7 @@ export default function Home() {
   const title = link
     ? `عرض سماوة التقني - ${link.title_ar}`
     : 'معرض سماوة التقني';
-  const subTitle =
-    link?.description_ar || 'واجهة تفاعلية لعرض مشاريع ومنتجات سماوة التقنية بطريقة واضحة ومبهجة.';
+  const subTitle = link?.description_ar || '';
 
   return (
     <main className="min-h-screen bg-white relative overflow-hidden" dir="rtl">
@@ -112,9 +111,11 @@ export default function Home() {
           <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-5">
             {title}
           </h1>
-          <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed">
-            {subTitle}
-          </p>
+          {subTitle && (
+            <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed">
+              {subTitle}
+            </p>
+          )}
         </motion.div>
       </section>
 
