@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { startTransition, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Copy,
@@ -147,6 +147,11 @@ export default function Admin() {
     window.setTimeout(() => setNotice(''), 2600);
   };
 
+  const reportBackgroundError = (message: string, error: unknown) => {
+    console.error(message, error);
+    showNotice(message);
+  };
+
   const handlePasswordSignIn = async (event: React.FormEvent) => {
     event.preventDefault();
     setAuthError('');
@@ -176,7 +181,7 @@ export default function Admin() {
     }
   };
 
-  const saveProject = async (event: React.FormEvent) => {
+  const saveProject = (event: React.FormEvent) => {
     event.preventDefault();
     if (!editingProject) return;
 
@@ -190,17 +195,24 @@ export default function Admin() {
       tags: Array.isArray(editingProject.tags) ? editingProject.tags : [],
     } as ProjectCard;
 
-    if (db) await setDoc(doc(db, 'projects', projectData.id), projectData);
-    setProjects((previous) => {
-      const exists = previous.some((project) => project.id === projectData.id);
-      const next = exists ? previous.map((project) => (project.id === projectData.id ? projectData : project)) : [...previous, projectData];
-      return next.sort((a, b) => a.sort_order - b.sort_order);
-    });
     setEditingProject(null);
     showNotice('تم حفظ المشروع');
+    startTransition(() => {
+      setProjects((previous) => {
+        const exists = previous.some((project) => project.id === projectData.id);
+        const next = exists ? previous.map((project) => (project.id === projectData.id ? projectData : project)) : [...previous, projectData];
+        return next.sort((a, b) => a.sort_order - b.sort_order);
+      });
+    });
+
+    if (db) {
+      void setDoc(doc(db, 'projects', projectData.id), projectData).catch((error) => {
+        reportBackgroundError('تعذر حفظ المشروع في Firebase', error);
+      });
+    }
   };
 
-  const saveLink = async (event: React.FormEvent) => {
+  const saveLink = (event: React.FormEvent) => {
     event.preventDefault();
     if (!editingLink) return;
 
@@ -214,15 +226,22 @@ export default function Admin() {
       project_ids: selectedProjectIds,
     } as ShowcaseLink;
 
-    if (db) await setDoc(doc(db, 'showcase_links', linkData.id), linkData);
-    setLinks((previous) => {
-      const exists = previous.some((item) => item.id === linkData.id);
-      const next = exists ? previous.map((item) => (item.id === linkData.id ? linkData : item)) : [...previous, linkData];
-      return next.sort((a, b) => a.sort_order - b.sort_order);
-    });
     setEditingLink(null);
     setSelectedProjectIds([]);
     showNotice('تم حفظ رابط العرض');
+    startTransition(() => {
+      setLinks((previous) => {
+        const exists = previous.some((item) => item.id === linkData.id);
+        const next = exists ? previous.map((item) => (item.id === linkData.id ? linkData : item)) : [...previous, linkData];
+        return next.sort((a, b) => a.sort_order - b.sort_order);
+      });
+    });
+
+    if (db) {
+      void setDoc(doc(db, 'showcase_links', linkData.id), linkData).catch((error) => {
+        reportBackgroundError('تعذر حفظ رابط العرض في Firebase', error);
+      });
+    }
   };
 
   const toggleProjectVisibility = async (project: ProjectCard) => {
