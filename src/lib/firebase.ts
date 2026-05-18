@@ -12,7 +12,7 @@ import {
   setPersistence,
   signInWithEmailAndPassword,
 } from 'firebase/auth';
-import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, limit, Firestore } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, limit, Firestore } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, FirebaseStorage } from 'firebase/storage';
 import { ProjectCard, ShowcaseLink } from '../types';
 import { FALLBACK_LINKS, SEED_PROJECTS } from '../constants';
@@ -162,7 +162,7 @@ export async function getProjects(): Promise<ProjectCard[]> {
     const projects = snapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() } as ProjectCard))
       .map(repairProjectText);
-    return mergeProjects(projects.length > 0 ? projects : SEED_PROJECTS, localProjects);
+    return mergeProjects(mergeProjects(SEED_PROJECTS, projects), localProjects);
   } catch (error) {
     console.error('Error fetching projects:', error);
     return mergeProjects(SEED_PROJECTS, localProjects);
@@ -170,20 +170,8 @@ export async function getProjects(): Promise<ProjectCard[]> {
 }
 
 export async function getProjectById(projectId: string): Promise<ProjectCard | null> {
-  await initFirebase();
-
-  if (!db) {
-    return SEED_PROJECTS.find((project) => project.id === projectId) || null;
-  }
-
-  try {
-    const snapshot = await getDoc(doc(db, 'projects', projectId));
-    if (!snapshot.exists()) return null;
-    return { id: snapshot.id, ...(snapshot.data() as Omit<ProjectCard, 'id'>) };
-  } catch (error) {
-    console.error('Error fetching project by id:', error);
-    return SEED_PROJECTS.find((project) => project.id === projectId) || null;
-  }
+  const projects = await getProjects();
+  return projects.find((project) => project.id === projectId || project.slug === projectId) || null;
 }
 
 export async function getShowcaseLinks(): Promise<ShowcaseLink[]> {
@@ -198,7 +186,7 @@ export async function getShowcaseLinks(): Promise<ShowcaseLink[]> {
     const links = snapshot.docs
       .map((docRef) => ({ id: docRef.id, ...(docRef.data() as Omit<ShowcaseLink, 'id'>) }))
       .map(repairLinkText);
-    return mergeLinks(links.length > 0 ? links : FALLBACK_LINKS, localLinks);
+    return mergeLinks(mergeLinks(FALLBACK_LINKS, links), localLinks);
   } catch (error) {
     console.error('Error fetching showcase links:', error);
     return mergeLinks(FALLBACK_LINKS, localLinks);
