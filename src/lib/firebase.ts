@@ -14,6 +14,49 @@ const adminEmails = (firebaseEnv.VITE_ADMIN_EMAILS || '')
   .map((email: string) => email.trim().toLowerCase())
   .filter(Boolean);
 
+function hasBrokenArabic(value?: string | null): boolean {
+  if (!value) return false;
+  return value.includes('???') || /[ØÙÃÂ]/.test(value);
+}
+
+function repairProjectText(project: ProjectCard): ProjectCard {
+  const fallback = SEED_PROJECTS.find((item) => item.id === project.id || item.slug === project.slug);
+  if (!fallback) return project;
+
+  if (
+    hasBrokenArabic(project.title_ar) ||
+    hasBrokenArabic(project.subtitle_ar) ||
+    hasBrokenArabic(project.short_description_ar) ||
+    hasBrokenArabic(project.category)
+  ) {
+    return {
+      ...project,
+      title_ar: fallback.title_ar,
+      subtitle_ar: fallback.subtitle_ar,
+      short_description_ar: fallback.short_description_ar,
+      category: fallback.category,
+      tags: fallback.tags,
+    };
+  }
+
+  return project;
+}
+
+function repairLinkText(link: ShowcaseLink): ShowcaseLink {
+  const fallback = FALLBACK_LINKS.find((item) => item.id === link.id || item.slug === link.slug);
+  if (!fallback) return link;
+
+  if (hasBrokenArabic(link.title_ar) || hasBrokenArabic(link.description_ar)) {
+    return {
+      ...link,
+      title_ar: fallback.title_ar,
+      description_ar: fallback.description_ar,
+    };
+  }
+
+  return link;
+}
+
 async function initFirebase() {
   if (app) return;
   
@@ -53,7 +96,9 @@ export async function getProjects(): Promise<ProjectCard[]> {
   try {
     const q = query(collection(db, 'projects'), orderBy('sort_order', 'asc'));
     const snapshot = await getDocs(q);
-    const projects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProjectCard));
+    const projects = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as ProjectCard))
+      .map(repairProjectText);
     return projects.length > 0 ? projects : SEED_PROJECTS;
   } catch (error) {
     console.error('Error fetching projects:', error);
@@ -86,7 +131,9 @@ export async function getShowcaseLinks(): Promise<ShowcaseLink[]> {
   try {
     const q = query(collection(db, 'showcase_links'), orderBy('sort_order', 'asc'));
     const snapshot = await getDocs(q);
-    const links = snapshot.docs.map((docRef) => ({ id: docRef.id, ...(docRef.data() as Omit<ShowcaseLink, 'id'>) }));
+    const links = snapshot.docs
+      .map((docRef) => ({ id: docRef.id, ...(docRef.data() as Omit<ShowcaseLink, 'id'>) }))
+      .map(repairLinkText);
     return links.length > 0 ? links : FALLBACK_LINKS;
   } catch (error) {
     console.error('Error fetching showcase links:', error);
