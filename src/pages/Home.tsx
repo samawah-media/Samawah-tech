@@ -120,10 +120,10 @@ export default function Home() {
     );
   }
 
-  const title = link
-    ? `عرض سماوة التقني - ${link.title_ar}`
-    : 'معرض سماوة التقني';
-  const subTitle = link?.description_ar || '';
+  const title = link ? link.title_ar : 'حلول سماوة التقنية';
+  const subTitle =
+    link?.description_ar ||
+    'منصات ومنتجات رقمية نبنيها لتسهيل العمل، تنظيم المعرفة، وأتمتة التجارب.';
 
   return (
     <main className="min-h-screen bg-white relative overflow-hidden" dir="rtl">
@@ -138,13 +138,19 @@ export default function Home() {
           transition={{ duration: 0.6 }}
         >
           <span className="inline-block px-4 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-bold mb-4">
-            مشاريع سماوة الرقمية
+            مشاريع سماوة التقنية
           </span>
-          <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-slate-900 mb-3 md:mb-5">
-            {title}
-          </h1>
+          {link ? (
+            <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-slate-900 mb-3 md:mb-5">
+              {title}
+            </h1>
+          ) : (
+            <h1 className="text-4xl sm:text-5xl md:text-7xl font-black text-slate-900 mb-4 md:mb-6 leading-tight">
+              حلول سماوة <span className="text-brand-blue">التقنية</span>
+            </h1>
+          )}
           {subTitle && (
-            <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl text-slate-500 max-w-3xl mx-auto leading-relaxed">
               {subTitle}
             </p>
           )}
