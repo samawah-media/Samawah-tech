@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { FALLBACK_LINKS, SEED_PROJECTS } from '../constants';
 
 const introVideoUrl = '/media/e_a_be_db_mp_.mp4';
+const backgroundImageUrl = '/backgrounds/samawah-cosmic-grid.jpg';
 
 const viewOptions: { id: ShowcaseMode; label: string }[] = [
   { id: 'grid', label: 'شبكة' },
@@ -167,7 +168,17 @@ export default function Home() {
   }
 
   return (
-    <main className="relative h-screen overflow-hidden bg-[#050505] text-white selection:bg-white selection:text-black" dir="rtl">
+    <main className="relative h-screen overflow-hidden bg-[#080713] text-white selection:bg-white selection:text-black" dir="rtl">
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <img
+          src={backgroundImageUrl}
+          alt=""
+          aria-hidden="true"
+          className="h-full w-full scale-105 object-cover opacity-45"
+        />
+        <div className="absolute inset-0 bg-black/55" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(80,65,190,0.16)_0%,rgba(8,7,19,0.42)_46%,rgba(3,3,8,0.88)_100%)]" />
+      </div>
       <header className="fixed inset-x-0 top-0 z-50 h-20" dir="ltr">
         <div>
           <Link to="/" className="group fixed left-3 top-4 flex items-center gap-3 text-left md:left-8" aria-label="Samawah Tech">
@@ -206,14 +217,14 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="absolute inset-0 overflow-hidden">
+      <section className="absolute inset-0 z-10 overflow-hidden">
         <motion.div
           animate={{ opacity: introDone ? 0.18 : 1, scale: introDone ? 1.08 : 1 }}
           transition={{ duration: 1.1, ease: 'easeInOut' }}
           className="absolute inset-0"
         >
           <video
-            className={`h-full w-full bg-black object-cover transition-opacity duration-500 ${
+            className={`h-full w-full bg-transparent object-cover transition-opacity duration-500 ${
               videoReady ? 'opacity-100' : 'opacity-0'
             }`}
             src={introVideoUrl}
@@ -230,8 +241,8 @@ export default function Home() {
             }}
             onEnded={() => setIntroDone(true)}
           />
-          <div className="absolute inset-0 bg-black/35" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.45)_58%,rgba(0,0,0,0.95)_100%)]" />
+          <div className="absolute inset-0 bg-black/25" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.34)_58%,rgba(3,3,8,0.88)_100%)]" />
         </motion.div>
 
         <motion.div
