@@ -1,8 +1,12 @@
 {
-  "apiKey": "DUMMY",
-  "authDomain": "DUMMY",
-  "projectId": "DUMMY",
-  "storageBucket": "DUMMY",
-  "messagingSenderId": "DUMMY",
-  "appId": "DUMMY"
+  "apiKey": "AIzaSyCKF9bXUSUvrknj0-w9te64k3Al2rjHHi4",
+  "authDomain": "samawah-tech.firebaseapp.com",
+  "projectId": "samawah-tech",
+  "storageBucket": "samawah-tech.firebasestorage.app",
+  "messagingSenderId": "279131009054",
+  "appId": "1:279131009054:web:b79a5fe42cf76dbceefe0f",
+  "measurementId": "G-02DXS63VFR",
+  "adminEmails": [
+    "omarsamawah@gmail.com"
+  ]
 }

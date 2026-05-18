@@ -20,9 +20,9 @@ import {
   getProjects,
   getShowcaseLinks,
   db,
+  ensureFirebaseReady,
   signInAdmin,
   signOutAdmin,
-  isFirebaseReady,
   isAllowedAdminEmail,
   onAuthUserChanged,
 } from '../lib/firebase';
@@ -67,28 +67,43 @@ export default function Admin() {
   const [linkProjectIds, setLinkProjectIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
+  const [firebaseEnabled, setFirebaseEnabled] = useState(false);
   const [user, setUser] = useState<import('firebase/auth').User | null>(null);
   const [search, setSearch] = useState('');
   const [linkSearch, setLinkSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'projects' | 'links'>('projects');
-  const isDemoMode = !isFirebaseReady();
+  const isDemoMode = !firebaseEnabled;
 
   useEffect(() => {
-    if (!isFirebaseReady()) {
-      setAuthLoading(false);
-      return;
-    }
+    let active = true;
+    let stop = () => {};
 
-    const stop = onAuthUserChanged((userState) => {
-      setUser(userState);
-      setAuthLoading(false);
-    });
+    (async () => {
+      const ready = await ensureFirebaseReady();
+      if (!active) return;
 
-    return stop;
+      setFirebaseEnabled(ready);
+
+      if (!ready) {
+        setAuthLoading(false);
+        return;
+      }
+
+      stop = onAuthUserChanged((userState) => {
+        if (!active) return;
+        setUser(userState);
+        setAuthLoading(false);
+      });
+    })();
+
+    return () => {
+      active = false;
+      stop();
+    };
   }, []);
 
   const canEdit = useMemo(() => {
-    if (!isFirebaseReady()) return true;
+    if (!firebaseEnabled) return true;
     if (!user) return false;
     if (FALLBACK_ADMIN_EMAILS.length === 0) {
       return isAllowedAdminEmail(user.email);
@@ -97,7 +112,7 @@ export default function Admin() {
       FALLBACK_ADMIN_EMAILS.includes((user.email || '').toLowerCase()) ||
       isAllowedAdminEmail(user.email)
     );
-  }, [user]);
+  }, [firebaseEnabled, user]);
 
   const visibleProjects = useMemo(() => {
     return projects.filter(

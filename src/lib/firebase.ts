@@ -7,6 +7,7 @@ import { FALLBACK_LINKS, SEED_PROJECTS } from '../constants';
 let app: FirebaseApp | null = null;
 export let db: Firestore | null = null;
 export let auth: Auth | null = null;
+let configuredAdminEmails: string[] = [];
 const firebaseEnv = import.meta.env;
 const adminEmails = (firebaseEnv.VITE_ADMIN_EMAILS || '')
   .split(',')
@@ -20,6 +21,12 @@ async function initFirebase() {
     // @ts-ignore
     const config = await import(/* @vite-ignore */ '../../firebase-applet-config.json');
     const firebaseConfig = config.default;
+
+    configuredAdminEmails = Array.isArray(firebaseConfig.adminEmails)
+      ? firebaseConfig.adminEmails
+          .map((email: string) => email.trim().toLowerCase())
+          .filter(Boolean)
+      : [];
     
       if (firebaseConfig && firebaseConfig.apiKey !== 'DUMMY') {
         app = initializeApp(firebaseConfig);
@@ -31,6 +38,11 @@ async function initFirebase() {
   } catch (e) {
     console.warn('Firebase config not loaded, using seed data.');
   }
+}
+
+export async function ensureFirebaseReady(): Promise<boolean> {
+  await initFirebase();
+  return Boolean(db && auth);
 }
 
 export async function getProjects(): Promise<ProjectCard[]> {
@@ -100,8 +112,9 @@ export function isFirebaseReady(): boolean {
 
 export function isAllowedAdminEmail(email: string | null): boolean {
   if (!email) return false;
-  if (adminEmails.length === 0) return true;
-  return adminEmails.includes(email.toLowerCase());
+  const allowedEmails = adminEmails.length > 0 ? adminEmails : configuredAdminEmails;
+  if (allowedEmails.length === 0) return true;
+  return allowedEmails.includes(email.toLowerCase());
 }
 
 export function onAuthUserChanged(callback: (user: User | null) => void): () => void {
