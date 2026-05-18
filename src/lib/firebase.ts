@@ -74,15 +74,7 @@ async function initFirebase() {
   try {
     // @ts-ignore
     const config = await import(/* @vite-ignore */ '../../firebase-applet-config.json');
-    const firebaseConfig = { ...config.default };
-
-    if (
-      typeof window !== 'undefined' &&
-      window.location.protocol === 'https:' &&
-      !window.location.hostname.endsWith('firebaseapp.com')
-    ) {
-      firebaseConfig.authDomain = window.location.hostname;
-    }
+    const firebaseConfig = config.default;
 
     configuredAdminEmails = Array.isArray(firebaseConfig.adminEmails)
       ? firebaseConfig.adminEmails
