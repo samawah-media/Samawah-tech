@@ -13,6 +13,7 @@ import {
   Save,
   Search,
   Trash2,
+  UploadCloud,
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -32,6 +33,7 @@ import {
   signInAdmin,
   signInAdminWithPassword,
   signOutAdmin,
+  uploadProjectImage,
 } from '../lib/firebase';
 
 function cn(...inputs: ClassValue[]) {
@@ -489,6 +491,25 @@ function ProjectModal({ project, onChange, onClose, onSubmit }: {
   onClose: () => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  async function handleImageUpload(file: File | undefined) {
+    if (!file) return;
+    setUploadError('');
+    setUploading(true);
+
+    try {
+      const imageUrl = await uploadProjectImage(file, project.slug || project.id || 'project');
+      onChange({ ...project, cover_image_url: imageUrl });
+    } catch (error) {
+      console.error(error);
+      setUploadError('تعذر رفع الصورة. تأكد أن قواعد Firebase Storage منشورة وأنك مسجل دخول كأدمن.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <Modal title={project.id ? 'تعديل مشروع' : 'مشروع جديد'} onClose={onClose}>
       <form onSubmit={onSubmit} className="space-y-5">
@@ -501,6 +522,30 @@ function ProjectModal({ project, onChange, onClose, onSubmit }: {
           <TextInput label="التصنيف" value={project.category || ''} onChange={(value) => onChange({ ...project, category: value })} />
           <TextInput label="الترتيب" type="number" value={String(project.sort_order || 0)} onChange={(value) => onChange({ ...project, sort_order: Number(value || 0) })} />
           <label className="block text-sm font-bold text-slate-700">لون التمييز<input type="color" value={project.accent_color || '#2563eb'} onChange={(event) => onChange({ ...project, accent_color: event.target.value })} className="mt-2 w-full h-12 p-1 bg-slate-50 border border-slate-200 rounded-xl" /></label>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-[160px_1fr] gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="aspect-[4/3] overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {project.cover_image_url ? (
+              <img src={project.cover_image_url} alt={project.title_ar || 'Project cover'} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm font-bold text-slate-400">لا توجد صورة</div>
+            )}
+          </div>
+          <div className="flex flex-col justify-center gap-3">
+            <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-brand-blue">
+              <UploadCloud size={18} />
+              {uploading ? 'جار رفع الصورة...' : 'رفع صورة من الجهاز'}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={uploading}
+                onChange={(event) => handleImageUpload(event.target.files?.[0])}
+                className="sr-only"
+              />
+            </label>
+            <p className="text-sm leading-7 text-slate-500">اختر صورة PNG أو JPG أو WebP. بعد انتهاء الرفع سيظهر الرابط تلقائيا في خانة مسار الصورة، ثم اضغط حفظ.</p>
+            {uploadError ? <p className="text-sm font-bold text-rose-600">{uploadError}</p> : null}
+          </div>
         </div>
         <TextArea label="وصف مختصر" value={project.short_description_ar || ''} onChange={(value) => onChange({ ...project, short_description_ar: value })} />
         <TextInput label="الوسوم" value={(project.tags || []).join(', ')} onChange={(value) => onChange({ ...project, tags: value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />

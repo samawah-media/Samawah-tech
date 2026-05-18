@@ -100,7 +100,7 @@ export const SEED_PROJECTS: ProjectCard[] = [
     subtitle_ar: 'مخطط يومي ذكي للمهام والتقويم',
     short_description_ar: 'رتّب يومك بالصوت والشات والتقويم الذكي في تجربة إنتاجية مريحة.',
     project_url: 'https://ratbha-ai.vercel.app/',
-    cover_image_url: '/projects/kharbasha.png',
+    cover_image_url: '/projects/rathbha.png',
     category: 'إنتاجية',
     tags: ['AI', 'تخطيط', 'تقويم'],
     accent_color: '#f59e0b',

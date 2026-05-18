@@ -13,14 +13,27 @@ import {
   signInWithEmailAndPassword,
 } from 'firebase/auth';
 import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, Firestore } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL, FirebaseStorage } from 'firebase/storage';
 import { ProjectCard, ShowcaseLink } from '../types';
 import { FALLBACK_LINKS, SEED_PROJECTS } from '../constants';
 
 let app: FirebaseApp | null = null;
 export let db: Firestore | null = null;
 export let auth: Auth | null = null;
+export let storage: FirebaseStorage | null = null;
 let configuredAdminEmails: string[] = [];
 const firebaseEnv = import.meta.env;
+type FirebaseJsonConfig = {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+  measurementId?: string;
+  adminEmails?: string[];
+  firestoreDatabaseId?: string;
+};
 const adminEmails = (firebaseEnv.VITE_ADMIN_EMAILS || '')
   .split(',')
   .map((email: string) => email.trim().toLowerCase())
@@ -34,15 +47,19 @@ function hasBrokenArabic(value?: string | null): boolean {
 function repairProjectText(project: ProjectCard): ProjectCard {
   const fallback = SEED_PROJECTS.find((item) => item.id === project.id || item.slug === project.slug);
   if (!fallback) return project;
+  const normalizedProject =
+    project.slug === 'ratbha-ai' && project.cover_image_url === '/projects/kharbasha.png'
+      ? { ...project, cover_image_url: fallback.cover_image_url }
+      : project;
 
   if (
-    hasBrokenArabic(project.title_ar) ||
-    hasBrokenArabic(project.subtitle_ar) ||
-    hasBrokenArabic(project.short_description_ar) ||
-    hasBrokenArabic(project.category)
+    hasBrokenArabic(normalizedProject.title_ar) ||
+    hasBrokenArabic(normalizedProject.subtitle_ar) ||
+    hasBrokenArabic(normalizedProject.short_description_ar) ||
+    hasBrokenArabic(normalizedProject.category)
   ) {
     return {
-      ...project,
+      ...normalizedProject,
       title_ar: fallback.title_ar,
       subtitle_ar: fallback.subtitle_ar,
       short_description_ar: fallback.short_description_ar,
@@ -51,7 +68,7 @@ function repairProjectText(project: ProjectCard): ProjectCard {
     };
   }
 
-  return project;
+  return normalizedProject;
 }
 
 function repairLinkText(link: ShowcaseLink): ShowcaseLink {
@@ -75,7 +92,7 @@ async function initFirebase() {
   try {
     // @ts-ignore
     const config = await import(/* @vite-ignore */ '../../firebase-applet-config.json');
-    const firebaseConfig = config.default;
+    const firebaseConfig = config.default as FirebaseJsonConfig;
 
     configuredAdminEmails = Array.isArray(firebaseConfig.adminEmails)
       ? firebaseConfig.adminEmails
@@ -89,6 +106,7 @@ async function initFirebase() {
           ? getFirestore(app, firebaseConfig.firestoreDatabaseId) 
           : getFirestore(app);
         auth = getAuth(app);
+        storage = getStorage(app);
         await setPersistence(auth, browserLocalPersistence);
       }
   } catch (e) {
@@ -205,6 +223,26 @@ export async function signInAdminWithPassword(email: string, password: string) {
   await initFirebase();
   if (!auth) return null;
   return signInWithEmailAndPassword(auth, email, password);
+}
+
+export async function uploadProjectImage(file: File, projectSlugOrId: string): Promise<string> {
+  await initFirebase();
+  if (!storage || !auth?.currentUser) {
+    throw new Error('Firebase Storage is not ready for uploads.');
+  }
+
+  const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
+  const safeProjectId = (projectSlugOrId || 'project')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const imageRef = ref(storage, `projects/${safeProjectId || 'project'}/${Date.now()}.${extension}`);
+
+  await uploadBytes(imageRef, file, {
+    contentType: file.type || `image/${extension}`,
+  });
+
+  return getDownloadURL(imageRef);
 }
 
 export async function signOutAdmin() {

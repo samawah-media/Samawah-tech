@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ExternalLink, ChevronRight, Share2, Check } from 'lucide-react';
 import { ProjectCard } from '../types';
@@ -30,7 +30,7 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
     setCurrentIndex((prev) => (prev - 1 + projects.length) % projects.length);
   }, [projects.length]);
 
-  const handleShare = async (event: React.MouseEvent, project: ProjectCard) => {
+  const handleShare = async (event: MouseEvent, project: ProjectCard) => {
     event.stopPropagation();
     const shareData = {
       title: project.title_ar,
