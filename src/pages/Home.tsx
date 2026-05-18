@@ -69,7 +69,7 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-brand-blue border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -77,22 +77,22 @@ export default function Home() {
   if (notFound) {
     return (
       <main className="min-h-screen bg-white flex flex-col items-center justify-center text-center px-6 py-20" dir="rtl">
-        <h1 className="text-3xl font-black text-slate-900 mb-4">?????? ??? ????? ?? ??? ?????</h1>
+        <h1 className="text-3xl font-black text-slate-900 mb-4">الرابط غير متاح أو انتهت صلاحيته</h1>
         <p className="text-slate-500 max-w-lg">
-          ?????? ??????? ???? ???? ?????? ????? ??? ??? ?????? ?? ????? ???????.
+          قد يكون الرابط موقوفًا مؤقتًا أو مخصصًا لفترة عرض محددة.
         </p>
         <Link to="/" className="mt-6 inline-block bg-brand-blue text-white px-6 py-3 rounded-xl font-bold">
-          ?????? ????????
+          العودة للمعرض
         </Link>
       </main>
     );
   }
 
   const title = link
-    ? `???? ?????? ????? - ${link.title_ar}`
-    : '?????? ??? ?? ???? ?????';
+    ? `عرض سماوة التقني - ${link.title_ar}`
+    : 'معرض سماوة التقني';
   const subTitle =
-    link?.description_ar || '?????? ????? ?????? ???? ???????? ??????? ???????? ????????.';
+    link?.description_ar || 'واجهة تفاعلية لعرض مشاريع ومنتجات سماوة التقنية بطريقة واضحة ومبهجة.';
 
   return (
     <main className="min-h-screen bg-white relative overflow-hidden" dir="rtl">
@@ -100,16 +100,16 @@ export default function Home() {
       <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-red/5 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-[20%] left-[-5%] w-[30%] h-[30%] bg-brand-yellow/5 rounded-full blur-[100px] pointer-events-none" />
 
-      <section className="pt-24 pb-10 px-4 text-center relative z-10">
+      <section className="pt-20 md:pt-24 pb-8 px-4 text-center relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <span className="inline-block px-4 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-bold mb-4 tracking-widest uppercase">
-            ?????? ????? ???????
+          <span className="inline-block px-4 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-bold mb-4">
+            مشاريع سماوة الرقمية
           </span>
-          <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-6 tracking-tight">
+          <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-5">
             {title}
           </h1>
           <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed">
@@ -123,9 +123,9 @@ export default function Home() {
       </section>
 
       <footer className="py-12 px-4 text-center text-slate-400 text-sm font-medium">
-        <div className="flex items-center justify-center gap-3 opacity-30 hover:opacity-100 transition-opacity duration-300">
+        <div className="flex items-center justify-center gap-3 opacity-40 hover:opacity-100 transition-opacity duration-300">
           <span className="w-8 h-[2px] bg-slate-300" />
-          <span className="tracking-widest uppercase text-xs">SAMAWAH DIGITAL SHOWCASE</span>
+          <span className="text-xs">SAMAWAH DIGITAL SHOWCASE</span>
           <span className="w-8 h-[2px] bg-slate-300" />
         </div>
       </footer>

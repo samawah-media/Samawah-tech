@@ -1,78 +1,80 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Link2,
-  Plus,
-  Search,
+  ArrowLeft,
+  Copy,
+  Edit3,
+  ExternalLink,
   Eye,
   EyeOff,
-  Edit3,
-  Trash2,
-  ExternalLink,
-  ArrowLeft,
-  Save,
-  X,
-  LogIn,
   Link as LinkIcon,
   Link2Off,
+  LogIn,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  X,
 } from 'lucide-react';
-import { ProjectCard, ShowcaseLink } from '../types';
-import {
-  getProjects,
-  getShowcaseLinks,
-  db,
-  ensureFirebaseReady,
-  signInAdmin,
-  signOutAdmin,
-  isAllowedAdminEmail,
-  onAuthUserChanged,
-} from '../lib/firebase';
+import { Link } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import { doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Link } from 'react-router-dom';
+import { ProjectCard, ShowcaseLink } from '../types';
+import {
+  db,
+  ensureFirebaseReady,
+  getProjects,
+  getShowcaseLinks,
+  isAllowedAdminEmail,
+  onAuthUserChanged,
+  signInAdmin,
+  signOutAdmin,
+} from '../lib/firebase';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const FALLBACK_ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || '')
-  .split(',')
-  .map((email: string) => email.trim().toLowerCase())
-  .filter(Boolean);
-
-const newProjectTemplate: Partial<ProjectCard> = {
+const projectTemplate: Partial<ProjectCard> = {
   is_visible: true,
+  is_featured: false,
   status: 'published',
   tags: [],
   sort_order: 1,
-  accent_color: '#3b82f6',
+  accent_color: '#2563eb',
+  cover_image_url: '/projects/contracts.png',
 };
 
-const defaultLinkTemplate: Partial<ShowcaseLink> = {
+const linkTemplate: Partial<ShowcaseLink> = {
   is_active: true,
   sort_order: 1,
-  starts_at: null,
-  ends_at: null,
   title_ar: '',
   description_ar: '',
   project_ids: [],
+  starts_at: null,
+  ends_at: null,
 };
+
+function makeId(prefix: string) {
+  if (crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export default function Admin() {
   const [projects, setProjects] = useState<ProjectCard[]>([]);
   const [links, setLinks] = useState<ShowcaseLink[]>([]);
   const [editingProject, setEditingProject] = useState<Partial<ProjectCard> | null>(null);
   const [editingLink, setEditingLink] = useState<Partial<ShowcaseLink> | null>(null);
-  const [linkProjectIds, setLinkProjectIds] = useState<string[]>([]);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<'projects' | 'links'>('projects');
+  const [search, setSearch] = useState('');
+  const [linkSearch, setLinkSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
   const [firebaseEnabled, setFirebaseEnabled] = useState(false);
   const [user, setUser] = useState<import('firebase/auth').User | null>(null);
-  const [search, setSearch] = useState('');
-  const [linkSearch, setLinkSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'projects' | 'links'>('projects');
-  const isDemoMode = !firebaseEnabled;
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -83,7 +85,6 @@ export default function Admin() {
       if (!active) return;
 
       setFirebaseEnabled(ready);
-
       if (!ready) {
         setAuthLoading(false);
         return;
@@ -102,52 +103,40 @@ export default function Admin() {
     };
   }, []);
 
-  const canEdit = useMemo(() => {
-    if (!firebaseEnabled) return true;
-    if (!user) return false;
-    if (FALLBACK_ADMIN_EMAILS.length === 0) {
-      return isAllowedAdminEmail(user.email);
-    }
-    return (
-      FALLBACK_ADMIN_EMAILS.includes((user.email || '').toLowerCase()) ||
-      isAllowedAdminEmail(user.email)
-    );
-  }, [firebaseEnabled, user]);
+  useEffect(() => {
+    (async () => {
+      const [projectData, linkData] = await Promise.all([getProjects(), getShowcaseLinks()]);
+      setProjects(projectData);
+      setLinks(linkData);
+      setLoading(false);
+    })();
+  }, []);
 
-  const visibleProjects = useMemo(() => {
-    return projects.filter(
-      (project) =>
-        project.title_ar.toLowerCase().includes(search.toLowerCase()) ||
-        project.slug.toLowerCase().includes(search.toLowerCase()) ||
-        project.category.toLowerCase().includes(search.toLowerCase()),
+  const canEdit = !firebaseEnabled || Boolean(user && isAllowedAdminEmail(user.email));
+  const isDemoMode = !firebaseEnabled;
+
+  const filteredProjects = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return projects;
+    return projects.filter((project) =>
+      [project.title_ar, project.slug, project.category, project.subtitle_ar]
+        .join(' ')
+        .toLowerCase()
+        .includes(term),
     );
   }, [projects, search]);
 
-  const visibleLinks = useMemo(() => {
-    return links.filter(
-      (item) =>
-        item.slug.toLowerCase().includes(linkSearch.toLowerCase()) ||
-        item.title_ar.toLowerCase().includes(linkSearch.toLowerCase()),
+  const filteredLinks = useMemo(() => {
+    const term = linkSearch.trim().toLowerCase();
+    if (!term) return links;
+    return links.filter((item) =>
+      [item.title_ar, item.slug, item.description_ar].join(' ').toLowerCase().includes(term),
     );
   }, [links, linkSearch]);
 
-  useEffect(() => {
-    const hydrate = async () => {
-      const [projectsData, linksData] = await Promise.all([getProjects(), getShowcaseLinks()]);
-      setProjects(projectsData);
-      setLinks(linksData);
-      setLoading(false);
-    };
-
-    hydrate();
-  }, []);
-
-  const handleSignIn = async () => {
-    await signInAdmin();
-  };
-
-  const handleSignOut = async () => {
-    await signOutAdmin();
+  const showNotice = (message: string) => {
+    setNotice(message);
+    window.setTimeout(() => setNotice(''), 2600);
   };
 
   const handleSaveProject = async (event: React.FormEvent) => {
@@ -156,39 +145,26 @@ export default function Admin() {
 
     const now = new Date().toISOString();
     const projectData = {
-      ...newProjectTemplate,
+      ...projectTemplate,
       ...editingProject,
-      updated_at: now,
+      id: editingProject.id || makeId('project'),
       created_at: editingProject.created_at || now,
-      id: editingProject.id || Math.random().toString(36).substr(2, 9),
+      updated_at: now,
+      tags: Array.isArray(editingProject.tags) ? editingProject.tags : [],
     } as ProjectCard;
 
     if (db) {
       await setDoc(doc(db, 'projects', projectData.id), projectData);
     }
 
-    setProjects((prev) => {
-      const exists = prev.find((project) => project.id === projectData.id);
-      if (exists) return prev.map((project) => (project.id === projectData.id ? projectData : project));
-      return [...prev, projectData];
+    setProjects((previous) => {
+      const exists = previous.some((project) => project.id === projectData.id);
+      if (exists) return previous.map((project) => (project.id === projectData.id ? projectData : project));
+      return [...previous, projectData].sort((a, b) => a.sort_order - b.sort_order);
     });
 
     setEditingProject(null);
-  };
-  const toggleVisibility = async (id: string, current: boolean) => {
-    if (db) {
-      await updateDoc(doc(db, 'projects', id), { is_visible: !current, updated_at: new Date().toISOString() });
-    }
-    setProjects((prev) => prev.map((project) => (project.id === id ? { ...project, is_visible: !current } : project)));
-  };
-
-  const deleteProject = async (id: string) => {
-    if (!window.confirm('?? ??? ????? ??? ???? ??? ??? ??????? ????????')) return;
-
-    if (db) {
-      await deleteDoc(doc(db, 'projects', id));
-    }
-    setProjects((prev) => prev.filter((project) => project.id !== id));
+    showNotice('تم حفظ المشروع');
   };
 
   const handleSaveLink = async (event: React.FormEvent) => {
@@ -197,151 +173,164 @@ export default function Admin() {
 
     const now = new Date().toISOString();
     const linkData = {
-      ...defaultLinkTemplate,
+      ...linkTemplate,
       ...editingLink,
-      id: editingLink.id || Math.random().toString(36).substr(2, 9),
-      updated_at: now,
+      id: editingLink.id || makeId('link'),
       created_at: editingLink.created_at || now,
-      project_ids: linkProjectIds,
+      updated_at: now,
+      project_ids: selectedProjectIds,
     } as ShowcaseLink;
 
     if (db) {
       await setDoc(doc(db, 'showcase_links', linkData.id), linkData);
     }
 
-    setLinks((prev) => {
-      const exists = prev.find((item) => item.id === linkData.id);
-      if (exists) return prev.map((item) => (item.id === linkData.id ? linkData : item));
-      return [...prev, linkData];
+    setLinks((previous) => {
+      const exists = previous.some((item) => item.id === linkData.id);
+      if (exists) return previous.map((item) => (item.id === linkData.id ? linkData : item));
+      return [...previous, linkData].sort((a, b) => a.sort_order - b.sort_order);
     });
 
     setEditingLink(null);
-    setLinkProjectIds([]);
+    setSelectedProjectIds([]);
+    showNotice('تم حفظ رابط العرض');
   };
 
-  const deleteLink = async (id: string) => {
-    if (!window.confirm('?? ??? ????? ??? ???? ??? ???? ????? ????')) return;
-
+  const toggleProjectVisibility = async (project: ProjectCard) => {
+    const nextValue = !project.is_visible;
     if (db) {
-      await deleteDoc(doc(db, 'showcase_links', id));
-    }
-    setLinks((prev) => prev.filter((link) => link.id !== id));
-  };
-
-  const toggleLink = async (id: string, current: boolean) => {
-    if (db) {
-      await updateDoc(doc(db, 'showcase_links', id), {
-        is_active: !current,
+      await updateDoc(doc(db, 'projects', project.id), {
+        is_visible: nextValue,
         updated_at: new Date().toISOString(),
       });
     }
+    setProjects((previous) =>
+      previous.map((item) => (item.id === project.id ? { ...item, is_visible: nextValue } : item)),
+    );
+  };
 
-    setLinks((prev) => prev.map((item) => (item.id === id ? { ...item, is_active: !current } : item)));
+  const toggleLinkStatus = async (item: ShowcaseLink) => {
+    const nextValue = !item.is_active;
+    if (db) {
+      await updateDoc(doc(db, 'showcase_links', item.id), {
+        is_active: nextValue,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    setLinks((previous) =>
+      previous.map((linkItem) => (linkItem.id === item.id ? { ...linkItem, is_active: nextValue } : linkItem)),
+    );
+  };
+
+  const deleteProject = async (project: ProjectCard) => {
+    if (!window.confirm(`حذف مشروع "${project.title_ar}"؟`)) return;
+    if (db) await deleteDoc(doc(db, 'projects', project.id));
+    setProjects((previous) => previous.filter((item) => item.id !== project.id));
+    showNotice('تم حذف المشروع');
+  };
+
+  const deleteLink = async (item: ShowcaseLink) => {
+    if (!window.confirm(`حذف رابط "${item.title_ar}"؟`)) return;
+    if (db) await deleteDoc(doc(db, 'showcase_links', item.id));
+    setLinks((previous) => previous.filter((linkItem) => linkItem.id !== item.id));
+    showNotice('تم حذف الرابط');
   };
 
   const copyLink = async (slug: string) => {
-    const link = `${window.location.origin}/v/${slug}`;
-    await navigator.clipboard.writeText(link);
+    await navigator.clipboard.writeText(`${window.location.origin}/v/${slug}`);
+    showNotice('تم نسخ الرابط');
   };
 
-  const openLinkPreview = (slug: string) => {
-    window.open(`${window.location.origin}/v/${slug}`, '_blank');
-  };
-
-  if (authLoading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
       </div>
+    );
+  }
+
+  if (firebaseEnabled && !user) {
+    return (
+      <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4" dir="rtl">
+        <section className="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-black text-slate-900">تسجيل دخول الأدمن</h1>
+          <p className="mt-3 text-slate-500 leading-7">سجّل الدخول بحساب جوجل المصرّح له لإدارة المشاريع وروابط العرض.</p>
+          <button
+            onClick={signInAdmin}
+            className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-brand-blue text-white rounded-xl font-bold"
+          >
+            <LogIn size={18} />
+            الدخول بحساب Google
+          </button>
+          <Link to="/" className="mt-6 block text-slate-500 text-sm underline">
+            العودة للمعرض
+          </Link>
+        </section>
+      </main>
     );
   }
 
   if (!canEdit) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4" dir="rtl">
-        <div className="max-w-lg w-full bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center">
-          <h1 className="text-2xl font-black text-slate-900">????? ???? ??????</h1>
-          <p className="mt-3 text-slate-500">??? ?????? ???? ????????. ??? ?????? ????? ??????.</p>
-          <button
-            onClick={handleSignIn}
-            className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-brand-blue text-white rounded-xl font-bold"
-          >
-            <LogIn size={18} />
-            ????? ?????? ???????? Google
+      <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4" dir="rtl">
+        <section className="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-black text-slate-900">هذا الحساب غير مصرح له</h1>
+          <p className="mt-3 text-slate-500 leading-7">الحساب الحالي ليس ضمن قائمة إيميلات الأدمن.</p>
+          <button onClick={signOutAdmin} className="mt-6 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold">
+            تسجيل الخروج
           </button>
-          <p className="text-xs text-slate-400 mt-4">???? Firebase ???? ?????? ?????? ???? ??????.</p>
-          <Link to="/" className="mt-6 inline-block text-slate-500 text-sm underline">
-            ?????? ??????
-          </Link>
-        </div>
-      </div>
-    );
-  }
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
-      </div>
+        </section>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans p-4 md:p-8" dir="rtl">
+    <main className="min-h-screen bg-slate-50 p-4 md:p-8" dir="rtl">
       <div className="max-w-6xl mx-auto">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-black text-slate-900">???? ??????</h1>
-            <p className="text-slate-500">???? ???? ????????? ?????? ????? ???????</p>
-            {user ? <p className="text-xs text-slate-400 mt-1">?????? {user.email}</p> : null}
+            <h1 className="text-3xl font-black text-slate-900">لوحة إدارة سماوة</h1>
+            <p className="mt-1 text-slate-500">تحكم في كروت المشاريع وروابط العرض المخصصة للزوار.</p>
+            {user ? <p className="mt-1 text-xs text-slate-400">مسجل باسم {user.email}</p> : null}
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="px-4 py-2 text-sm font-bold bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-100 flex items-center gap-2"
-            >
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Link to="/" className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 inline-flex items-center gap-2">
               <ArrowLeft size={18} />
-              ??? ??????
+              المعرض
             </Link>
             {user ? (
-              <button
-                onClick={handleSignOut}
-                className="px-4 py-2 text-sm font-bold bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-100"
-              >
-                ???? ??????
+              <button onClick={signOutAdmin} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700">
+                خروج
               </button>
             ) : null}
-            {activeTab === 'projects' ? (
-              <button
-                onClick={() => setEditingProject(newProjectTemplate)}
-                className="px-6 py-2 bg-brand-blue text-white rounded-xl font-bold pixel-shadow-hover transition-all flex items-center gap-2"
-              >
-                <Plus size={20} />
-                ????? ?????
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setEditingLink({
-                    ...defaultLinkTemplate,
-                    sort_order: links.length + 1,
-                  });
-                  setLinkProjectIds([]);
-                }}
-                className="px-6 py-2 bg-brand-blue text-white rounded-xl font-bold pixel-shadow-hover transition-all flex items-center gap-2"
-              >
-                <Plus size={20} />
-                ????? ???? ???
-              </button>
-            )}
+            <button
+              onClick={() => {
+                if (activeTab === 'projects') {
+                  setEditingProject({ ...projectTemplate, sort_order: projects.length + 1 });
+                  return;
+                }
+                setEditingLink({ ...linkTemplate, sort_order: links.length + 1 });
+                setSelectedProjectIds([]);
+              }}
+              className="px-5 py-2 bg-brand-blue text-white rounded-xl font-bold inline-flex items-center gap-2 pixel-shadow-hover"
+            >
+              <Plus size={19} />
+              {activeTab === 'projects' ? 'مشروع جديد' : 'رابط جديد'}
+            </button>
           </div>
         </header>
 
         {isDemoMode ? (
-          <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-            <div className="font-bold">????? ???????</div>
-            <p className="mt-1 leading-7">
-              ????? ?????? ???? ??????? ???????. ????? ??????? ??????? ????? ?????? ?????? ??? ?? ??????? ??????? ????? ???? Firebase ??????.
-            </p>
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+            <div className="font-bold">وضع تجريبي</div>
+            <p className="mt-1 leading-7">Firebase غير متصل، لذلك ستظهر البيانات الافتراضية فقط ولن تنتقل التعديلات لكل الزوار.</p>
+          </div>
+        ) : null}
+
+        {notice ? (
+          <div className="fixed bottom-5 left-5 z-[120] bg-slate-950 text-white px-5 py-3 rounded-2xl shadow-xl text-sm font-bold">
+            {notice}
           </div>
         ) : null}
 
@@ -353,7 +342,7 @@ export default function Admin() {
               activeTab === 'projects' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200',
             )}
           >
-            ????????
+            المشاريع
           </button>
           <button
             onClick={() => setActiveTab('links')}
@@ -362,476 +351,462 @@ export default function Admin() {
               activeTab === 'links' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200',
             )}
           >
-            ????? ????? ???????
+            روابط العرض
           </button>
         </div>
 
         {activeTab === 'projects' ? (
-          <>
-            <div className="relative mb-6">
-              <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <input
-                type="text"
-                placeholder="???? ?? ????????..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pr-12 pl-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue outline-none transition-all shadow-sm"
-              />
-            </div>
-
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-right border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">???????</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">???????</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">??????</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">??????</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-left">?????????</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {visibleProjects.map((project) => (
-                      <tr key={project.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-4">
-                            <img src={project.cover_image_url} className="w-16 h-10 rounded-lg object-cover bg-slate-100 border border-slate-200" alt={project.title_ar} />
-                            <div>
-                              <div className="font-bold text-slate-900">{project.title_ar}</div>
-                              <div className="text-xs text-slate-400">{project.slug}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-xs font-medium px-2.5 py-1 bg-slate-100 rounded-full text-slate-600">{project.category}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={cn(
-                              'text-xs font-bold px-2.5 py-0.5 rounded-full border',
-                              project.status === 'published'
-                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                : 'bg-slate-50 text-slate-500 border-slate-100',
-                            )}
-                          >
-                            {project.status === 'published' ? '?????' : '??? ?????'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <button
-                            onClick={() => toggleVisibility(project.id, project.is_visible)}
-                            className={cn(
-                              'p-2 rounded-lg transition-colors',
-                              project.is_visible ? 'text-emerald-500 bg-emerald-50' : 'text-rose-500 bg-rose-50',
-                            )}
-                          >
-                            {project.is_visible ? <Eye size={18} /> : <EyeOff size={18} />}
-                          </button>
-                        </td>
-                        <td className="px-6 py-4 text-left">
-                          <div className="flex items-center justify-end gap-2 text-slate-400">
-                            <a href={project.project_url} target="_blank" className="p-2 hover:bg-slate-100 rounded-lg" rel="noreferrer">
-                              <ExternalLink size={18} />
-                            </a>
-                            <button onClick={() => setEditingProject(project)} className="p-2 hover:bg-brand-blue/10 hover:text-brand-blue rounded-lg">
-                              <Edit3 size={18} />
-                            </button>
-                            <button onClick={() => deleteProject(project.id)} className="p-2 hover:bg-rose-100 hover:text-rose-600 rounded-lg">
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
+          <ProjectsTable
+            projects={filteredProjects}
+            search={search}
+            onSearch={setSearch}
+            onEdit={setEditingProject}
+            onDelete={deleteProject}
+            onToggle={toggleProjectVisibility}
+          />
         ) : (
-          <>
-            <div className="relative mb-6">
-              <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <input
-                type="text"
-                placeholder="???? ?? ????? ?????"
-                value={linkSearch}
-                onChange={(e) => setLinkSearch(e.target.value)}
-                className="w-full pr-12 pl-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue outline-none transition-all shadow-sm"
-              />
-            </div>
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-right border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">??????</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">?????</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">???????? ????????</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">??????</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-left">?????????</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {visibleLinks.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-900">/{item.slug}</div>
-                        </td>
-                        <td className="px-6 py-4 text-slate-500">{item.description_ar}</td>
-                        <td className="px-6 py-4 text-slate-500">{item.project_ids.length} ?????</td>
-                        <td className="px-6 py-4">
-                          <button
-                            onClick={() => toggleLink(item.id, item.is_active)}
-                            className={cn(
-                              'p-2 rounded-lg transition-colors',
-                              item.is_active ? 'text-emerald-500 bg-emerald-50' : 'text-rose-500 bg-rose-50',
-                            )}
-                          >
-                            {item.is_active ? <LinkIcon size={18} /> : <Link2Off size={18} />}
-                          </button>
-                        </td>
-                        <td className="px-6 py-4 text-left">
-                          <div className="flex items-center justify-end gap-2 text-slate-400">
-                            <button
-                              onClick={() => copyLink(item.slug)}
-                              className="p-2 hover:bg-slate-100 rounded-lg"
-                              title="??? ??????"
-                            >
-                              <Link2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => openLinkPreview(item.slug)}
-                              className="p-2 hover:bg-brand-blue/10 hover:text-brand-blue rounded-lg"
-                              title="?????? ??????"
-                            >
-                              <ExternalLink size={18} />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingLink(item);
-                                setLinkProjectIds(item.project_ids);
-                              }}
-                              className="p-2 hover:bg-brand-blue/10 hover:text-brand-blue rounded-lg"
-                            >
-                              <Edit3 size={18} />
-                            </button>
-                            <button onClick={() => deleteLink(item.id)} className="p-2 hover:bg-rose-100 hover:text-rose-600 rounded-lg">
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
+          <LinksTable
+            links={filteredLinks}
+            projects={projects}
+            search={linkSearch}
+            onSearch={setLinkSearch}
+            onCopy={copyLink}
+            onDelete={deleteLink}
+            onToggle={toggleLinkStatus}
+            onEdit={(item) => {
+              setEditingLink(item);
+              setSelectedProjectIds(item.project_ids);
+            }}
+          />
         )}
       </div>
 
       <AnimatePresence>
-        {editingProject && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditingProject(null)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-black text-slate-900">{editingProject.id ? '????? ?????' : '????? ????? ????'}</h2>
-                <button onClick={() => setEditingProject(null)} className="p-2 hover:bg-slate-100 rounded-full">
-                  <X size={24} />
-                </button>
-              </div>
+        {editingProject ? (
+          <ProjectModal
+            project={editingProject}
+            onChange={setEditingProject}
+            onClose={() => setEditingProject(null)}
+            onSubmit={handleSaveProject}
+          />
+        ) : null}
 
-              <form onSubmit={handleSaveProject} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">??? ???????</label>
-                    <input
-                      required
-                      value={editingProject.title_ar || ''}
-                      onChange={(e) => setEditingProject({ ...editingProject, title_ar: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">?????? (Slug)</label>
-                    <input
-                      required
-                      value={editingProject.slug || ''}
-                      onChange={(e) => setEditingProject({ ...editingProject, slug: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">????? ??????</label>
-                    <input
-                      value={editingProject.subtitle_ar || ''}
-                      onChange={(e) => setEditingProject({ ...editingProject, subtitle_ar: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">???? ???????</label>
-                    <input
-                      required
-                      type="url"
-                      value={editingProject.project_url || ''}
-                      onChange={(e) => setEditingProject({ ...editingProject, project_url: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">?????? ???????</label>
-                    <input
-                      required
-                      type="url"
-                      value={editingProject.cover_image_url || ''}
-                      onChange={(e) => setEditingProject({ ...editingProject, cover_image_url: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">???????</label>
-                    <input
-                      value={editingProject.category || ''}
-                      onChange={(e) => setEditingProject({ ...editingProject, category: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">???????</label>
-                    <input
-                      type="number"
-                      value={editingProject.sort_order || 0}
-                      onChange={(e) => setEditingProject({ ...editingProject, sort_order: parseInt(e.target.value || '0', 10) })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">??? ??????</label>
-                    <input
-                      type="color"
-                      value={editingProject.accent_color || '#3b82f6'}
-                      onChange={(e) => setEditingProject({ ...editingProject, accent_color: e.target.value })}
-                      className="w-full h-12 p-1 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">????? ????????</label>
-                  <textarea
-                    rows={3}
-                    value={editingProject.short_description_ar || ''}
-                    onChange={(e) => setEditingProject({ ...editingProject, short_description_ar: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center gap-6 p-4 bg-slate-50 rounded-2xl">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editingProject.is_visible}
-                      onChange={(e) => setEditingProject({ ...editingProject, is_visible: e.target.checked })}
-                      className="w-5 h-5 rounded-md border-slate-300 text-brand-blue focus:ring-brand-blue"
-                    />
-                    <span className="text-sm font-bold text-slate-700">????? ??????</span>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editingProject.is_featured}
-                      onChange={(e) => setEditingProject({ ...editingProject, is_featured: e.target.checked })}
-                      className="w-5 h-5 rounded-md border-slate-300 text-brand-blue focus:ring-brand-blue"
-                    />
-                    <span className="text-sm font-bold text-slate-700">????? ????</span>
-                  </label>
-                </div>
-
-                <div className="pt-6 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setEditingProject(null)}
-                    className="px-8 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-2xl transition-all"
-                  >
-                    ?????
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-10 py-3 bg-brand-blue text-white rounded-2xl font-bold pixel-shadow-hover transition-all flex items-center gap-2"
-                  >
-                    <Save size={20} />
-                    ??? ?????????
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-
-        {editingLink && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditingLink(null)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-3xl bg-white rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-black text-slate-900">
-                  {editingLink.id ? '????? ???? ???' : '????? ???? ???'}
-                </h2>
-                <button onClick={() => setEditingLink(null)} className="p-2 hover:bg-slate-100 rounded-full">
-                  <X size={24} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveLink} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">??? ??????</label>
-                    <input
-                      required
-                      value={editingLink.title_ar || ''}
-                      onChange={(e) => setEditingLink({ ...editingLink, title_ar: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">???? ??????</label>
-                    <input
-                      required
-                      value={editingLink.slug || ''}
-                      onChange={(e) => setEditingLink({ ...editingLink, slug: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">???????</label>
-                    <input
-                      type="number"
-                      value={editingLink.sort_order || 0}
-                      onChange={(e) => setEditingLink({ ...editingLink, sort_order: parseInt(e.target.value || '0', 10) })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">????? ?????</label>
-                    <select
-                      value=""
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        if (!value) return;
-                        if (!linkProjectIds.includes(value)) {
-                          setLinkProjectIds((prev) => [...prev, value]);
-                        }
-                      }}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl"
-                    >
-                      <option value="">???? ???????</option>
-                      {projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.title_ar}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {linkProjectIds.map((projectId) => {
-                        const project = projects.find((item) => item.id === projectId);
-                        if (!project) return null;
-                        return (
-                          <button
-                            type="button"
-                            key={projectId}
-                            onClick={() => setLinkProjectIds((prev) => prev.filter((item) => item !== projectId))}
-                            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-sm"
-                          >
-                            {project.title_ar}
-                            <X size={14} />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">????? ???????</label>
-                    <input
-                      type="datetime-local"
-                      value={editingLink.starts_at || ''}
-                      onChange={(e) => setEditingLink({ ...editingLink, starts_at: e.target.value || null })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">????? ???????</label>
-                    <input
-                      type="datetime-local"
-                      value={editingLink.ends_at || ''}
-                      onChange={(e) => setEditingLink({ ...editingLink, ends_at: e.target.value || null })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="text-sm font-bold text-slate-700">????? ?????? ????????</label>
-                    <textarea
-                      rows={3}
-                      value={editingLink.description_ar || ''}
-                      onChange={(e) => setEditingLink({ ...editingLink, description_ar: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none resize-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-6 p-4 bg-slate-50 rounded-2xl">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editingLink.is_active}
-                      onChange={(e) => setEditingLink({ ...editingLink, is_active: e.target.checked })}
-                      className="w-5 h-5 rounded-md border-slate-300 text-brand-blue focus:ring-brand-blue"
-                    />
-                    <span className="text-sm font-bold text-slate-700">????? ??????</span>
-                  </label>
-                </div>
-
-                <div className="pt-6 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setEditingLink(null)}
-                    className="px-8 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-2xl transition-all"
-                  >
-                    ?????
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-10 py-3 bg-brand-blue text-white rounded-2xl font-bold pixel-shadow-hover transition-all flex items-center gap-2"
-                  >
-                    <Save size={20} />
-                    ??? ??????
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
+        {editingLink ? (
+          <LinkModal
+            item={editingLink}
+            projects={projects}
+            selectedProjectIds={selectedProjectIds}
+            onProjectIdsChange={setSelectedProjectIds}
+            onChange={setEditingLink}
+            onClose={() => setEditingLink(null)}
+            onSubmit={handleSaveLink}
+          />
+        ) : null}
       </AnimatePresence>
+    </main>
+  );
+}
+
+function ProjectsTable({
+  projects,
+  search,
+  onSearch,
+  onEdit,
+  onDelete,
+  onToggle,
+}: {
+  projects: ProjectCard[];
+  search: string;
+  onSearch: (value: string) => void;
+  onEdit: (project: ProjectCard) => void;
+  onDelete: (project: ProjectCard) => void;
+  onToggle: (project: ProjectCard) => void;
+}) {
+  return (
+    <>
+      <SearchBox value={search} onChange={onSearch} placeholder="ابحث في المشاريع..." />
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <TableHead>المشروع</TableHead>
+                <TableHead>التصنيف</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead>الظهور</TableHead>
+                <TableHead align="left">إجراءات</TableHead>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {projects.map((project) => (
+                <tr key={project.id} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="px-6 py-4 min-w-[310px]">
+                    <div className="flex items-center gap-4">
+                      <img src={project.cover_image_url} className="w-20 h-12 rounded-lg object-cover bg-slate-100 border border-slate-200" alt={project.title_ar} />
+                      <div>
+                        <div className="font-bold text-slate-900">{project.title_ar}</div>
+                        <div className="text-xs text-slate-400 ltr:text-left">{project.slug}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-slate-600">{project.category}</td>
+                  <td className="px-6 py-4">
+                    <StatusPill active={project.status === 'published'} label={project.status === 'published' ? 'منشور' : 'مسودة'} />
+                  </td>
+                  <td className="px-6 py-4">
+                    <IconButton onClick={() => onToggle(project)} label={project.is_visible ? 'إخفاء' : 'إظهار'}>
+                      {project.is_visible ? <Eye size={18} /> : <EyeOff size={18} />}
+                    </IconButton>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-end gap-2 text-slate-500">
+                      <a href={project.project_url} target="_blank" rel="noreferrer" className="p-2 hover:bg-slate-100 rounded-lg" title="فتح المشروع">
+                        <ExternalLink size={18} />
+                      </a>
+                      <IconButton onClick={() => onEdit(project)} label="تعديل">
+                        <Edit3 size={18} />
+                      </IconButton>
+                      <IconButton onClick={() => onDelete(project)} label="حذف" danger>
+                        <Trash2 size={18} />
+                      </IconButton>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function LinksTable({
+  links,
+  projects,
+  search,
+  onSearch,
+  onCopy,
+  onEdit,
+  onDelete,
+  onToggle,
+}: {
+  links: ShowcaseLink[];
+  projects: ProjectCard[];
+  search: string;
+  onSearch: (value: string) => void;
+  onCopy: (slug: string) => void;
+  onEdit: (item: ShowcaseLink) => void;
+  onDelete: (item: ShowcaseLink) => void;
+  onToggle: (item: ShowcaseLink) => void;
+}) {
+  return (
+    <>
+      <SearchBox value={search} onChange={onSearch} placeholder="ابحث في روابط العرض..." />
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <TableHead>الرابط</TableHead>
+                <TableHead>الوصف</TableHead>
+                <TableHead>المشاريع</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead align="left">إجراءات</TableHead>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {links.map((item) => (
+                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="px-6 py-4 min-w-[220px]">
+                    <div className="font-bold text-slate-900">/v/{item.slug}</div>
+                    <div className="text-xs text-slate-400">{item.title_ar}</div>
+                  </td>
+                  <td className="px-6 py-4 text-slate-600 min-w-[260px]">{item.description_ar}</td>
+                  <td className="px-6 py-4 text-slate-500">
+                    {item.project_ids
+                      .map((id) => projects.find((project) => project.id === id)?.title_ar)
+                      .filter(Boolean)
+                      .join('، ') || 'كل المشاريع'}
+                  </td>
+                  <td className="px-6 py-4">
+                    <IconButton onClick={() => onToggle(item)} label={item.is_active ? 'تعطيل' : 'تفعيل'}>
+                      {item.is_active ? <LinkIcon size={18} /> : <Link2Off size={18} />}
+                    </IconButton>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-end gap-2 text-slate-500">
+                      <IconButton onClick={() => onCopy(item.slug)} label="نسخ الرابط">
+                        <Copy size={18} />
+                      </IconButton>
+                      <a href={`/v/${item.slug}`} target="_blank" rel="noreferrer" className="p-2 hover:bg-slate-100 rounded-lg" title="معاينة">
+                        <ExternalLink size={18} />
+                      </a>
+                      <IconButton onClick={() => onEdit(item)} label="تعديل">
+                        <Edit3 size={18} />
+                      </IconButton>
+                      <IconButton onClick={() => onDelete(item)} label="حذف" danger>
+                        <Trash2 size={18} />
+                      </IconButton>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ProjectModal({
+  project,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  project: Partial<ProjectCard>;
+  onChange: (project: Partial<ProjectCard>) => void;
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent) => void;
+}) {
+  return (
+    <Modal title={project.id ? 'تعديل مشروع' : 'مشروع جديد'} onClose={onClose}>
+      <form onSubmit={onSubmit} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <TextField label="اسم المشروع" required value={project.title_ar || ''} onChange={(value) => onChange({ ...project, title_ar: value })} />
+          <TextField label="المعرف Slug" required value={project.slug || ''} onChange={(value) => onChange({ ...project, slug: value })} />
+          <TextField label="العنوان الفرعي" value={project.subtitle_ar || ''} onChange={(value) => onChange({ ...project, subtitle_ar: value })} />
+          <TextField label="رابط المشروع" required value={project.project_url || ''} onChange={(value) => onChange({ ...project, project_url: value })} />
+          <TextField label="مسار الصورة" required value={project.cover_image_url || ''} onChange={(value) => onChange({ ...project, cover_image_url: value })} />
+          <TextField label="التصنيف" value={project.category || ''} onChange={(value) => onChange({ ...project, category: value })} />
+          <TextField label="الترتيب" type="number" value={String(project.sort_order || 0)} onChange={(value) => onChange({ ...project, sort_order: Number(value || 0) })} />
+          <div>
+            <label className="text-sm font-bold text-slate-700">لون التمييز</label>
+            <input
+              type="color"
+              value={project.accent_color || '#2563eb'}
+              onChange={(event) => onChange({ ...project, accent_color: event.target.value })}
+              className="mt-2 w-full h-12 p-1 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+            />
+          </div>
+        </div>
+
+        <TextArea label="وصف مختصر" value={project.short_description_ar || ''} onChange={(value) => onChange({ ...project, short_description_ar: value })} />
+        <TextField
+          label="الوسوم"
+          value={(project.tags || []).join(', ')}
+          onChange={(value) => onChange({ ...project, tags: value.split(',').map((tag) => tag.trim()).filter(Boolean) })}
+        />
+
+        <div className="flex flex-wrap items-center gap-5 bg-slate-50 rounded-2xl p-4">
+          <CheckField label="ظاهر للزوار" checked={Boolean(project.is_visible)} onChange={(checked) => onChange({ ...project, is_visible: checked })} />
+          <CheckField label="مشروع مميز" checked={Boolean(project.is_featured)} onChange={(checked) => onChange({ ...project, is_featured: checked })} />
+          <label className="text-sm font-bold text-slate-700">
+            حالة النشر
+            <select
+              value={project.status || 'published'}
+              onChange={(event) => onChange({ ...project, status: event.target.value as ProjectCard['status'] })}
+              className="block mt-2 px-4 py-3 bg-white border border-slate-200 rounded-xl"
+            >
+              <option value="published">منشور</option>
+              <option value="draft">مسودة</option>
+              <option value="archived">مؤرشف</option>
+            </select>
+          </label>
+        </div>
+
+        <ModalActions onClose={onClose} />
+      </form>
+    </Modal>
+  );
+}
+
+function LinkModal({
+  item,
+  projects,
+  selectedProjectIds,
+  onProjectIdsChange,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  item: Partial<ShowcaseLink>;
+  projects: ProjectCard[];
+  selectedProjectIds: string[];
+  onProjectIdsChange: (ids: string[]) => void;
+  onChange: (item: Partial<ShowcaseLink>) => void;
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent) => void;
+}) {
+  return (
+    <Modal title={item.id ? 'تعديل رابط عرض' : 'رابط عرض جديد'} onClose={onClose}>
+      <form onSubmit={onSubmit} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <TextField label="عنوان الرابط" required value={item.title_ar || ''} onChange={(value) => onChange({ ...item, title_ar: value })} />
+          <TextField label="المعرف Slug" required value={item.slug || ''} onChange={(value) => onChange({ ...item, slug: value })} />
+          <TextField label="الترتيب" type="number" value={String(item.sort_order || 0)} onChange={(value) => onChange({ ...item, sort_order: Number(value || 0) })} />
+          <div className="flex items-end">
+            <CheckField label="الرابط فعّال" checked={Boolean(item.is_active)} onChange={(checked) => onChange({ ...item, is_active: checked })} />
+          </div>
+          <TextField label="يبدأ من" type="datetime-local" value={item.starts_at || ''} onChange={(value) => onChange({ ...item, starts_at: value || null })} />
+          <TextField label="ينتهي في" type="datetime-local" value={item.ends_at || ''} onChange={(value) => onChange({ ...item, ends_at: value || null })} />
+        </div>
+
+        <TextArea label="وصف الرابط" value={item.description_ar || ''} onChange={(value) => onChange({ ...item, description_ar: value })} />
+
+        <div>
+          <label className="text-sm font-bold text-slate-700">المشاريع التي تظهر لهذا الرابط</label>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            {projects.map((project) => {
+              const checked = selectedProjectIds.includes(project.id);
+              return (
+                <label key={project.id} className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(event) => {
+                      if (event.target.checked) {
+                        onProjectIdsChange([...selectedProjectIds, project.id]);
+                        return;
+                      }
+                      onProjectIdsChange(selectedProjectIds.filter((id) => id !== project.id));
+                    }}
+                    className="w-5 h-5 rounded-md border-slate-300 text-brand-blue focus:ring-brand-blue"
+                  />
+                  <span className="font-bold text-slate-800">{project.title_ar}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <ModalActions onClose={onClose} />
+      </form>
+    </Modal>
+  );
+}
+
+function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm" />
+      <motion.section
+        initial={{ scale: 0.96, opacity: 0, y: 18 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.96, opacity: 0, y: 18 }}
+        className="relative w-full max-w-3xl bg-white rounded-3xl p-6 md:p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-2xl font-black text-slate-900">{title}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full" aria-label="إغلاق">
+            <X size={24} />
+          </button>
+        </div>
+        {children}
+      </motion.section>
     </div>
+  );
+}
+
+function ModalActions({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="pt-4 flex items-center justify-end gap-3">
+      <button type="button" onClick={onClose} className="px-6 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-2xl">
+        إلغاء
+      </button>
+      <button type="submit" className="px-8 py-3 bg-brand-blue text-white rounded-2xl font-bold pixel-shadow-hover flex items-center gap-2">
+        <Save size={20} />
+        حفظ
+      </button>
+    </div>
+  );
+}
+
+function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  return (
+    <div className="relative mb-6">
+      <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full pr-12 pl-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue outline-none transition-all shadow-sm"
+      />
+    </div>
+  );
+}
+
+function TextField({ label, value, onChange, type = 'text', required = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean }) {
+  return (
+    <label className="block text-sm font-bold text-slate-700">
+      {label}
+      <input
+        required={required}
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none"
+      />
+    </label>
+  );
+}
+
+function TextArea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block text-sm font-bold text-slate-700">
+      {label}
+      <textarea
+        rows={3}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none resize-none"
+      />
+    </label>
+  );
+}
+
+function CheckField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-3 cursor-pointer text-sm font-bold text-slate-700">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="w-5 h-5 rounded-md border-slate-300 text-brand-blue focus:ring-brand-blue"
+      />
+      {label}
+    </label>
+  );
+}
+
+function TableHead({ children, align = 'right' }: { children: React.ReactNode; align?: 'right' | 'left' }) {
+  return (
+    <th className={cn('px-6 py-4 text-xs font-bold text-slate-500', align === 'left' ? 'text-left' : 'text-right')}>
+      {children}
+    </th>
+  );
+}
+
+function StatusPill({ active, label }: { active: boolean; label: string }) {
+  return (
+    <span className={cn('text-xs font-bold px-3 py-1 rounded-full border', active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100')}>
+      {label}
+    </span>
+  );
+}
+
+function IconButton({ children, onClick, label, danger = false }: { children: React.ReactNode; onClick: () => void; label: string; danger?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn('p-2 rounded-lg transition-colors', danger ? 'hover:bg-rose-100 hover:text-rose-600' : 'hover:bg-brand-blue/10 hover:text-brand-blue')}
+      title={label}
+      aria-label={label}
+    >
+      {children}
+    </button>
   );
 }
