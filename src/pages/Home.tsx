@@ -62,6 +62,8 @@ export default function Home() {
   const [mode, setMode] = useState<ShowcaseMode>('grid');
   const [titleSplit, setTitleSplit] = useState(false);
   const [introDone, setIntroDone] = useState(false);
+  const [introStarted, setIntroStarted] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -120,6 +122,18 @@ export default function Home() {
   useEffect(() => {
     setTitleSplit(false);
     setIntroDone(false);
+    setIntroStarted(false);
+    setVideoReady(false);
+
+    const fallbackStartTimer = window.setTimeout(() => setIntroStarted(true), 900);
+
+    return () => {
+      window.clearTimeout(fallbackStartTimer);
+    };
+  }, [slug]);
+
+  useEffect(() => {
+    if (!introStarted) return undefined;
 
     const splitTimer = window.setTimeout(() => setTitleSplit(true), 5600);
     const doneTimer = window.setTimeout(() => setIntroDone(true), 8000);
@@ -128,7 +142,7 @@ export default function Home() {
       window.clearTimeout(splitTimer);
       window.clearTimeout(doneTimer);
     };
-  }, [slug]);
+  }, [introStarted]);
 
   if (loading) {
     return (
@@ -199,13 +213,16 @@ export default function Home() {
           className="absolute inset-0"
         >
           <video
-            className="h-full w-full object-cover"
+            className={`h-full w-full bg-black object-cover transition-opacity duration-500 ${
+              videoReady ? 'opacity-100' : 'opacity-0'
+            }`}
             src={introVideoUrl}
             autoPlay
             muted
             playsInline
-            preload="metadata"
-            poster="/og-image.png"
+            preload="auto"
+            onCanPlay={() => setVideoReady(true)}
+            onPlay={() => setIntroStarted(true)}
             onTimeUpdate={(event) => {
               if (event.currentTarget.currentTime >= 7.8) {
                 setIntroDone(true);

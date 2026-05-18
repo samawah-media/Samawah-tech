@@ -4,8 +4,8 @@
   "description": "معرض رقمي لمشاريع ومنتجات سماوة التقنية.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "background_color": "#050505",
+  "theme_color": "#050505",
   "icons": [
     {
       "src": "/favicon-32.png",
