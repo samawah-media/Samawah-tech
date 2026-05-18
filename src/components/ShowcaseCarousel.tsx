@@ -16,6 +16,15 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function getGridClass(projectCount: number) {
+  if (projectCount <= 1) return 'grid-cols-1 grid-rows-1';
+  if (projectCount === 2) return 'grid-cols-1 grid-rows-2 sm:grid-cols-2 sm:grid-rows-1';
+  if (projectCount === 3) return 'grid-cols-1 grid-rows-3 sm:grid-cols-3 sm:grid-rows-1';
+  if (projectCount === 4) return 'grid-cols-2 grid-rows-2';
+  if (projectCount <= 6) return 'grid-cols-2 grid-rows-3 sm:grid-cols-3 sm:grid-rows-2';
+  return 'grid-cols-2 grid-rows-4 sm:grid-cols-4 sm:grid-rows-2';
+}
+
 export default function ShowcaseCarousel({ projects, mode = 'grid' }: ShowcaseCarouselProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -81,7 +90,7 @@ function ProjectGrid({
   copiedId: string | null;
 }) {
   return (
-    <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-px overflow-hidden bg-white/10 sm:grid-cols-2 xl:grid-cols-4">
+    <div className={cn('grid h-full w-full gap-px overflow-hidden bg-white/10', getGridClass(projects.length))}>
       {projects.map((project, index) => (
         <motion.a
           key={project.id}
@@ -92,7 +101,7 @@ function ProjectGrid({
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.55, delay: Math.min(index * 0.05, 0.35), ease: 'easeOut' }}
-          className="group relative block min-h-[360px] overflow-hidden bg-black outline-none focus-visible:ring-2 focus-visible:ring-white md:min-h-[430px]"
+          className="group relative block overflow-hidden bg-black outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
           <img
             src={project.cover_image_url}
@@ -103,38 +112,38 @@ function ProjectGrid({
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-75 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
           <div className="absolute inset-0 bg-black/20 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
 
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
-            <span className="border border-white/25 bg-black/25 px-3 py-1 text-[11px] font-bold text-white/80 backdrop-blur-md">
+          <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3 md:p-4">
+            <span className="border border-white/25 bg-black/25 px-2 py-1 text-[10px] font-bold text-white/80 backdrop-blur-md md:px-3 md:text-[11px]">
               {String(index + 1).padStart(2, '0')}
             </span>
             <button
               type="button"
               onClick={(event) => onShare(event, project)}
-              className="grid h-10 w-10 place-items-center border border-white/25 bg-black/25 text-white backdrop-blur-md transition-colors hover:bg-white hover:text-black"
+              className="grid h-8 w-8 place-items-center border border-white/25 bg-black/25 text-white backdrop-blur-md transition-colors hover:bg-white hover:text-black md:h-10 md:w-10"
               aria-label={`مشاركة ${project.title_ar}`}
             >
               {copiedId === project.id ? <Check size={18} /> : <Share2 size={18} />}
             </button>
           </div>
 
-          <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
-            <div className="mb-4 flex flex-wrap items-center gap-2 opacity-90">
-              <span className="bg-white px-3 py-1 text-[11px] font-black text-black">
+          <div className="absolute inset-x-0 bottom-0 p-3 md:p-6">
+            <div className="mb-2 flex flex-wrap items-center gap-2 opacity-90 md:mb-4">
+              <span className="bg-white px-2 py-1 text-[10px] font-black text-black md:px-3 md:text-[11px]">
                 {project.category}
               </span>
               {project.tags.slice(0, 2).map((tag) => (
-                <span key={tag} className="text-[11px] font-bold text-white/70">
+                <span key={tag} className="hidden text-[11px] font-bold text-white/70 md:inline">
                   #{tag}
                 </span>
               ))}
             </div>
-            <h3 className="text-3xl font-black leading-tight text-white md:text-4xl">
+            <h3 className="text-xl font-black leading-tight text-white sm:text-2xl md:text-4xl">
               {project.title_ar}
             </h3>
-            <p className="mt-3 max-h-0 overflow-hidden text-sm leading-7 text-white/0 transition-all duration-500 group-hover:max-h-32 group-hover:text-white/85 group-focus-visible:max-h-32 group-focus-visible:text-white/85">
+            <p className="mt-2 max-h-0 overflow-hidden text-xs leading-5 text-white/0 transition-all duration-500 group-hover:max-h-32 group-hover:text-white/85 group-focus-visible:max-h-32 group-focus-visible:text-white/85 md:mt-3 md:text-sm md:leading-7">
               {project.short_description_ar}
             </p>
-            <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-white">
+            <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-white md:mt-5 md:text-sm">
               فتح المشروع
               <ArrowUpLeft size={18} />
             </span>
@@ -155,7 +164,7 @@ function ProjectList({
   copiedId: string | null;
 }) {
   return (
-    <div className="mx-auto max-w-[1500px] border-y border-white/10">
+    <div className="h-full w-full overflow-hidden border-y border-white/10">
       {projects.map((project, index) => (
         <motion.a
           key={project.id}
@@ -166,19 +175,20 @@ function ProjectList({
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.45, delay: Math.min(index * 0.04, 0.28) }}
-          className="group grid gap-5 border-b border-white/10 px-2 py-6 transition-colors hover:bg-white hover:text-black md:grid-cols-[90px_1fr_220px_56px] md:items-center md:px-4 md:py-8"
+          className="group grid min-h-0 gap-2 border-b border-white/10 px-2 py-2 transition-colors hover:bg-white hover:text-black sm:grid-cols-[52px_1fr_150px_44px] sm:items-center md:grid-cols-[90px_1fr_220px_56px] md:px-4"
+          style={{ height: `${100 / projects.length}%` }}
         >
           <span className="text-sm font-black text-white/35 transition-colors group-hover:text-black/45">
             {String(index + 1).padStart(2, '0')}
           </span>
           <div>
-            <h3 className="text-3xl font-black leading-tight md:text-5xl">{project.title_ar}</h3>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-white/55 transition-colors group-hover:text-black/60">
+            <h3 className="text-xl font-black leading-tight sm:text-2xl md:text-4xl">{project.title_ar}</h3>
+            <p className="mt-1 line-clamp-2 max-w-3xl text-xs leading-5 text-white/55 transition-colors group-hover:text-black/60 md:text-sm md:leading-6">
               {project.short_description_ar}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 md:justify-end">
-            <span className="border border-white/15 px-3 py-1 text-xs font-bold text-white/60 transition-colors group-hover:border-black/15 group-hover:text-black/60">
+            <span className="hidden border border-white/15 px-3 py-1 text-xs font-bold text-white/60 transition-colors group-hover:border-black/15 group-hover:text-black/60 sm:inline-flex">
               {project.category}
             </span>
             <button
@@ -190,7 +200,7 @@ function ProjectList({
               {copiedId === project.id ? <Check size={15} /> : <Share2 size={15} />}
             </button>
           </div>
-          <span className="grid h-12 w-12 place-items-center border border-white/20 transition-colors group-hover:border-black group-hover:bg-black group-hover:text-white">
+          <span className="hidden h-12 w-12 place-items-center border border-white/20 transition-colors group-hover:border-black group-hover:bg-black group-hover:text-white sm:grid">
             <ArrowUpLeft size={22} />
           </span>
         </motion.a>
@@ -255,7 +265,7 @@ function ProjectCards({
   };
 
   return (
-    <div className="relative mx-auto flex h-[560px] max-w-[1500px] flex-col items-center justify-center overflow-hidden md:h-[720px]" dir="rtl">
+    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden" dir="rtl">
       <div className="relative flex h-full w-full items-center justify-center">
         <AnimatePresence initial={false} custom={direction}>
           {projects.map((project, index) => {

@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ShowcaseCarousel, { type ShowcaseMode } from '../components/ShowcaseCarousel';
 import { getProjects, getShowcaseLinkBySlug } from '../lib/firebase';
 import { ProjectCard, ShowcaseLink } from '../types';
-import { motion, useScroll, useTransform } from 'motion/react';
+import { motion } from 'motion/react';
 import { FALLBACK_LINKS, SEED_PROJECTS } from '../constants';
 
 const introVideoUrl = '/media/e_a_be_db_mp_.mp4';
@@ -60,15 +60,8 @@ export default function Home() {
   const [link, setLink] = useState<ShowcaseLink | null>(initialState.link);
   const [notFound, setNotFound] = useState(false);
   const [mode, setMode] = useState<ShowcaseMode>('grid');
-  const heroRef = useRef<HTMLElement | null>(null);
-
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ['start start', 'end start'],
-  });
-  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 1.12]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.75], [1, 0]);
-  const titleY = useTransform(scrollYProgress, [0, 1], [0, 120]);
+  const [titleSplit, setTitleSplit] = useState(false);
+  const [introDone, setIntroDone] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -120,6 +113,22 @@ export default function Home() {
 
   const title = link ? link.title_ar : 'حلول سماوة التقنية';
   const introLabel = link ? 'SAMAWAH PRIVATE VIEW' : 'SAMAWAH SOLUTIONS®';
+  const titleWords = title.split(' ');
+  const titleStart = titleWords.slice(0, -1).join(' ') || title;
+  const titleEnd = titleWords.length > 1 ? titleWords[titleWords.length - 1] : '';
+
+  useEffect(() => {
+    setTitleSplit(false);
+    setIntroDone(false);
+
+    const splitTimer = window.setTimeout(() => setTitleSplit(true), 5600);
+    const doneTimer = window.setTimeout(() => setIntroDone(true), 8000);
+
+    return () => {
+      window.clearTimeout(splitTimer);
+      window.clearTimeout(doneTimer);
+    };
+  }, [slug]);
 
   if (loading) {
     return (
@@ -144,7 +153,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#050505] text-white selection:bg-white selection:text-black" dir="rtl">
+    <main className="relative h-screen overflow-hidden bg-[#050505] text-white selection:bg-white selection:text-black" dir="rtl">
       <header className="fixed inset-x-0 top-0 z-50 h-20" dir="ltr">
         <div>
           <Link to="/" className="group fixed left-3 top-4 flex items-center gap-3 text-left md:left-8" aria-label="Samawah Tech">
@@ -173,34 +182,45 @@ export default function Home() {
             ))}
           </nav>
 
-          <a
-            href="#projects"
+          <button
+            type="button"
+            onClick={() => setIntroDone(true)}
             className="fixed left-14 top-4 grid h-10 w-12 place-items-center border border-white bg-white text-[10px] font-black text-black transition-colors hover:bg-transparent hover:text-white sm:left-auto sm:right-3 sm:w-16 sm:text-xs md:right-8"
           >
             سماوة
-          </a>
+          </button>
         </div>
       </header>
 
-      <section ref={heroRef} className="relative min-h-[100svh] overflow-hidden">
-        <motion.div style={{ scale: heroScale, opacity: heroOpacity }} className="absolute inset-0">
+      <section className="absolute inset-0 overflow-hidden">
+        <motion.div
+          animate={{ opacity: introDone ? 0.18 : 1, scale: introDone ? 1.08 : 1 }}
+          transition={{ duration: 1.1, ease: 'easeInOut' }}
+          className="absolute inset-0"
+        >
           <video
             className="h-full w-full object-cover"
             src={introVideoUrl}
             autoPlay
             muted
-            loop
             playsInline
             preload="metadata"
             poster="/og-image.png"
+            onTimeUpdate={(event) => {
+              if (event.currentTarget.currentTime >= 7.8) {
+                setIntroDone(true);
+              }
+            }}
+            onEnded={() => setIntroDone(true)}
           />
           <div className="absolute inset-0 bg-black/35" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.45)_58%,rgba(0,0,0,0.95)_100%)]" />
         </motion.div>
 
         <motion.div
-          style={{ y: titleY }}
-          className="relative z-10 flex min-h-[100svh] flex-col items-center justify-center px-4 text-center"
+          animate={{ opacity: introDone ? 0 : 1 }}
+          transition={{ duration: 0.7, ease: 'easeInOut' }}
+          className="pointer-events-none relative z-10 flex h-screen flex-col items-center justify-center px-4 text-center"
         >
           <motion.p
             initial={{ opacity: 0, y: 18 }}
@@ -215,18 +235,42 @@ export default function Home() {
             initial={{ opacity: 0, y: 28 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, delay: 0.1, ease: 'easeOut' }}
-            className="max-w-[92vw] text-balance text-4xl font-black leading-[1.18] sm:max-w-6xl sm:text-7xl sm:leading-[1.08] md:text-8xl lg:text-9xl"
+            className="flex max-w-[92vw] flex-wrap items-center justify-center gap-x-4 gap-y-2 text-balance text-4xl font-black leading-[1.18] sm:max-w-6xl sm:text-7xl sm:leading-[1.08] md:text-8xl lg:text-9xl"
           >
-            {title}
+            <motion.span
+              animate={{
+                x: titleSplit ? 140 : 0,
+                opacity: titleSplit ? 0 : 1,
+                filter: titleSplit ? 'blur(12px)' : 'blur(0px)',
+              }}
+              transition={{ duration: 1.05, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {titleStart}
+            </motion.span>
+            {titleEnd ? (
+              <motion.span
+                animate={{
+                  x: titleSplit ? -140 : 0,
+                  opacity: titleSplit ? 0 : 1,
+                  filter: titleSplit ? 'blur(12px)' : 'blur(0px)',
+                }}
+                transition={{ duration: 1.05, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {titleEnd}
+              </motion.span>
+            ) : null}
           </motion.h1>
         </motion.div>
 
-        <a
-          href="#projects"
+        <motion.button
+          type="button"
+          onClick={() => setIntroDone(true)}
+          animate={{ opacity: introDone ? 0 : 1 }}
+          transition={{ duration: 0.5 }}
           className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-3 text-[10px] font-bold uppercase tracking-[0.3em] text-white/55"
           dir="ltr"
         >
-          <span>Scroll</span>
+          <span>Enter</span>
           <span className="h-12 w-px overflow-hidden bg-white/20">
             <motion.span
               className="block h-5 w-px bg-white"
@@ -234,26 +278,21 @@ export default function Home() {
               transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
             />
           </span>
-        </a>
+        </motion.button>
       </section>
 
-      <section id="projects" className="relative z-10 min-h-screen border-t border-white/10 bg-[#050505] px-3 py-16 md:px-6 md:py-24">
-        <div className="mx-auto mb-8 flex max-w-[1600px] flex-col gap-5 md:mb-12 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="mb-3 text-xs font-bold uppercase tracking-[0.24em] text-white/45" dir="ltr">
-              Selected Work
-            </p>
-            <h2 className="text-3xl font-black md:text-5xl">
-              {link ? link.title_ar : 'المشاريع'}
-            </h2>
-          </div>
-          <p className="max-w-xl text-sm leading-7 text-white/55 md:text-base">
-            {link?.description_ar || 'اختر طريقة العرض المناسبة واستعرض مشاريع سماوة بروابط مباشرة وتجربة أوضح على الجوال.'}
-          </p>
-        </div>
-
+      <motion.section
+        className="absolute inset-0 z-20 px-2 pb-2 pt-20 md:px-4 md:pb-4"
+        initial={false}
+        animate={{
+          opacity: introDone ? 1 : 0,
+          scale: introDone ? 1 : 1.08,
+          pointerEvents: introDone ? 'auto' : 'none',
+        }}
+        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+      >
         <ShowcaseCarousel projects={projects} mode={mode} />
-      </section>
+      </motion.section>
     </main>
   );
 }
