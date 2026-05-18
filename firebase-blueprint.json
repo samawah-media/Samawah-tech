@@ -1,0 +1,35 @@
+{
+  "entities": {
+    "ProjectCard": {
+      "title": "Project Card",
+      "description": "Represents a showcased project in Samawah showcase",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "title_ar": { "type": "string" },
+        "subtitle_ar": { "type": "string" },
+        "short_description_ar": { "type": "string" },
+        "project_url": { "type": "string" },
+        "cover_image_url": { "type": "string" },
+        "logo_url": { "type": "string" },
+        "accent_color": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "category": { "type": "string" },
+        "is_visible": { "type": "boolean" },
+        "is_featured": { "type": "boolean" },
+        "sort_order": { "type": "number" },
+        "status": { "type": "string", "enum": ["draft", "published", "archived"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "slug", "title_ar", "project_url", "cover_image_url", "is_visible", "status"]
+    }
+  },
+  "firestore": {
+    "projects": {
+      "schema": "ProjectCard",
+      "description": "Collection of showcased projects"
+    }
+  }
+}
