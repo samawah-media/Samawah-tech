@@ -75,6 +75,7 @@ export default function Admin() {
   const [firebaseEnabled, setFirebaseEnabled] = useState(false);
   const [user, setUser] = useState<import('firebase/auth').User | null>(null);
   const [notice, setNotice] = useState('');
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -137,6 +138,16 @@ export default function Admin() {
   const showNotice = (message: string) => {
     setNotice(message);
     window.setTimeout(() => setNotice(''), 2600);
+  };
+
+  const handleAdminSignIn = async () => {
+    setAuthError('');
+    try {
+      await signInAdmin();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'تعذر بدء تسجيل الدخول.';
+      setAuthError(message);
+    }
   };
 
   const handleSaveProject = async (event: React.FormEvent) => {
@@ -256,12 +267,15 @@ export default function Admin() {
           <h1 className="text-2xl font-black text-slate-900">تسجيل دخول الأدمن</h1>
           <p className="mt-3 text-slate-500 leading-7">سجّل الدخول بحساب جوجل المصرّح له لإدارة المشاريع وروابط العرض.</p>
           <button
-            onClick={signInAdmin}
+            onClick={handleAdminSignIn}
             className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-brand-blue text-white rounded-xl font-bold"
           >
             <LogIn size={18} />
             الدخول بحساب Google
           </button>
+          {authError ? (
+            <p className="mt-4 text-sm leading-6 text-rose-600">{authError}</p>
+          ) : null}
           <Link to="/" className="mt-6 block text-slate-500 text-sm underline">
             العودة للمعرض
           </Link>

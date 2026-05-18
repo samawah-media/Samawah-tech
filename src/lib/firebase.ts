@@ -1,5 +1,5 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { getAuth, Auth, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, Firestore } from 'firebase/firestore';
 import { ProjectCard, ShowcaseLink } from '../types';
 import { FALLBACK_LINKS, SEED_PROJECTS } from '../constants';
@@ -176,7 +176,10 @@ export async function signInAdmin() {
   if (!auth) return;
 
   const provider = new GoogleAuthProvider();
-  await signInWithPopup(auth, provider);
+  provider.setCustomParameters({
+    prompt: 'select_account',
+  });
+  await signInWithRedirect(auth, provider);
 }
 
 export async function signOutAdmin() {
