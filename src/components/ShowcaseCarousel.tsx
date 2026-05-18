@@ -178,7 +178,7 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
                         {project.category}
                       </span>
                       {project.tags.slice(0, 3).map((tag) => (
-                        <span key={tag} className="text-[11px] font-semibold text-white/85">
+                        <span key={tag} className="hidden sm:inline text-[11px] font-semibold text-white/85">
                           #{tag}
                         </span>
                       ))}
@@ -208,7 +208,7 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
         </AnimatePresence>
       </div>
 
-      <div className="absolute inset-x-0 top-[44%] md:top-1/2 -translate-y-1/2 flex justify-between px-1 md:px-10 pointer-events-none z-50">
+      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 hidden md:flex justify-between px-10 pointer-events-none z-50">
         <button
           onClick={(event) => {
             event.stopPropagation();
