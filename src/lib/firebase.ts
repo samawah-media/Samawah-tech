@@ -10,6 +10,7 @@ import {
   getRedirectResult,
   browserLocalPersistence,
   setPersistence,
+  signInWithEmailAndPassword,
 } from 'firebase/auth';
 import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, Firestore } from 'firebase/firestore';
 import { ProjectCard, ShowcaseLink } from '../types';
@@ -198,6 +199,12 @@ export async function signInAdmin() {
     prompt: 'select_account',
   });
   await signInWithRedirect(auth, provider);
+}
+
+export async function signInAdminWithPassword(email: string, password: string) {
+  await initFirebase();
+  if (!auth) return null;
+  return signInWithEmailAndPassword(auth, email, password);
 }
 
 export async function signOutAdmin() {
