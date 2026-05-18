@@ -87,17 +87,33 @@ function repairLinkText(link: ShowcaseLink): ShowcaseLink {
   return link;
 }
 
+function projectKey(project: Pick<ProjectCard, 'id' | 'slug'>) {
+  return project.id || project.slug;
+}
+
+function linkKey(link: Pick<ShowcaseLink, 'id' | 'slug'>) {
+  return link.id || link.slug;
+}
+
 function mergeProjects(base: ProjectCard[], local: ProjectCard[]) {
   if (local.length === 0) return base;
-  const map = new Map(base.map((project) => [project.id, project]));
-  local.forEach((project) => map.set(project.id, project));
+  const map = new Map(base.map((project) => [projectKey(project), project]));
+  local.forEach((project) => {
+    const existingEntry = Array.from(map.entries()).find(([, current]) => current.slug === project.slug);
+    if (existingEntry) map.delete(existingEntry[0]);
+    map.set(projectKey(project), project);
+  });
   return Array.from(map.values()).sort((a, b) => a.sort_order - b.sort_order);
 }
 
 function mergeLinks(base: ShowcaseLink[], local: ShowcaseLink[]) {
   if (local.length === 0) return base;
-  const map = new Map(base.map((link) => [link.id, link]));
-  local.forEach((link) => map.set(link.id, link));
+  const map = new Map(base.map((link) => [linkKey(link), link]));
+  local.forEach((link) => {
+    const existingEntry = Array.from(map.entries()).find(([, current]) => current.slug === link.slug);
+    if (existingEntry) map.delete(existingEntry[0]);
+    map.set(linkKey(link), link);
+  });
   return Array.from(map.values()).sort((a, b) => a.sort_order - b.sort_order);
 }
 

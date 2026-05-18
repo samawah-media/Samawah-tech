@@ -21,7 +21,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { ProjectCard, ShowcaseLink } from '../types';
+import { ProjectCard, ProjectStatus, ShowcaseLink } from '../types';
 import {
   checkFirestoreAccess,
   consumeAdminRedirectResult,
@@ -73,6 +73,7 @@ export default function Admin() {
   const [editingLink, setEditingLink] = useState<Partial<ShowcaseLink> | null>(null);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'projects' | 'links'>('projects');
+  const [projectFilter, setProjectFilter] = useState<'all' | 'published' | 'draft' | 'hidden'>('all');
   const [search, setSearch] = useState('');
   const [linkSearch, setLinkSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -141,11 +142,18 @@ export default function Admin() {
 
   const filteredProjects = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return projects;
-    return projects.filter((project) =>
-      [project.title_ar, project.slug, project.category, project.subtitle_ar].join(' ').toLowerCase().includes(term),
-    );
-  }, [projects, search]);
+    return projects.filter((project) => {
+      const matchesSearch =
+        !term ||
+        [project.title_ar, project.slug, project.category, project.subtitle_ar].join(' ').toLowerCase().includes(term);
+
+      if (!matchesSearch) return false;
+      if (projectFilter === 'published') return project.status === 'published' && project.is_visible;
+      if (projectFilter === 'draft') return project.status !== 'published';
+      if (projectFilter === 'hidden') return !project.is_visible;
+      return true;
+    });
+  }, [projectFilter, projects, search]);
 
   const filteredLinks = useMemo(() => {
     const term = linkSearch.trim().toLowerCase();
@@ -445,7 +453,20 @@ export default function Admin() {
         </div>
 
         {activeTab === 'projects' ? (
-          <ProjectsTable projects={filteredProjects} search={search} onSearch={setSearch} onEdit={setEditingProject} onDelete={deleteProject} onToggle={toggleProjectVisibility} />
+          <ProjectsTable
+            projects={filteredProjects}
+            totalProjects={projects.length}
+            publishedProjects={projects.filter((project) => project.status === 'published' && project.is_visible).length}
+            draftProjects={projects.filter((project) => project.status !== 'published').length}
+            hiddenProjects={projects.filter((project) => !project.is_visible).length}
+            filter={projectFilter}
+            onFilterChange={setProjectFilter}
+            search={search}
+            onSearch={setSearch}
+            onEdit={setEditingProject}
+            onDelete={deleteProject}
+            onToggle={toggleProjectVisibility}
+          />
         ) : (
           <LinksTable links={filteredLinks} projects={projects} search={linkSearch} onSearch={setLinkSearch} onCopy={copyLink} onDelete={deleteLink} onToggle={toggleLinkStatus} onEdit={(item) => {
             setEditingLink(item);
@@ -464,6 +485,12 @@ export default function Admin() {
 
 function ProjectsTable(props: {
   projects: ProjectCard[];
+  totalProjects: number;
+  publishedProjects: number;
+  draftProjects: number;
+  hiddenProjects: number;
+  filter: 'all' | 'published' | 'draft' | 'hidden';
+  onFilterChange: (value: 'all' | 'published' | 'draft' | 'hidden') => void;
   search: string;
   onSearch: (value: string) => void;
   onEdit: (project: ProjectCard) => void;
@@ -473,6 +500,13 @@ function ProjectsTable(props: {
   return (
     <>
       <SearchBox value={props.search} onChange={props.onSearch} placeholder="ابحث في المشاريع..." />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <FilterChip active={props.filter === 'all'} onClick={() => props.onFilterChange('all')} label={`كل المشاريع (${props.totalProjects})`} />
+        <FilterChip active={props.filter === 'published'} onClick={() => props.onFilterChange('published')} label={`الظاهرة للزوار (${props.publishedProjects})`} />
+        <FilterChip active={props.filter === 'draft'} onClick={() => props.onFilterChange('draft')} label={`غير المنشورة (${props.draftProjects})`} />
+        <FilterChip active={props.filter === 'hidden'} onClick={() => props.onFilterChange('hidden')} label={`المخفية (${props.hiddenProjects})`} />
+      </div>
+      <Notice title="مهم" text="صفحة الزوار تعرض فقط المشاريع المنشورة والظاهرة. إذا كان المشروع مسودة أو مخفيًا فسيبقى ظاهرًا هنا داخل الأدمن فقط." />
       <Table>
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200">
@@ -496,7 +530,7 @@ function ProjectsTable(props: {
                 </div>
               </td>
               <td className="px-6 py-4 text-slate-600">{project.category}</td>
-              <td className="px-6 py-4"><StatusPill active={project.status === 'published'} label={project.status === 'published' ? 'منشور' : 'مسودة'} /></td>
+              <td className="px-6 py-4"><StatusPill active={project.status === 'published'} label={project.status === 'published' ? 'منشور' : project.status === 'archived' ? 'مؤرشف' : 'مسودة'} /></td>
               <td className="px-6 py-4"><IconButton onClick={() => props.onToggle(project)} label={project.is_visible ? 'إخفاء' : 'إظهار'}>{project.is_visible ? <Eye size={18} /> : <EyeOff size={18} />}</IconButton></td>
               <td className="px-6 py-4"><Actions>
                 <a href={project.project_url} target="_blank" rel="noreferrer" className="p-2 hover:bg-slate-100 rounded-lg" title="فتح المشروع"><ExternalLink size={18} /></a>
@@ -592,6 +626,16 @@ function ProjectModal({ project, onChange, onClose, onSubmit }: {
           <TextInput label="مسار الصورة" value={project.cover_image_url || ''} onChange={(value) => onChange({ ...project, cover_image_url: value })} required />
           <TextInput label="التصنيف" value={project.category || ''} onChange={(value) => onChange({ ...project, category: value })} />
           <TextInput label="الترتيب" type="number" value={String(project.sort_order || 0)} onChange={(value) => onChange({ ...project, sort_order: Number(value || 0) })} />
+          <SelectField
+            label="حالة المشروع"
+            value={(project.status || 'published') as ProjectStatus}
+            options={[
+              { value: 'published', label: 'منشور' },
+              { value: 'draft', label: 'مسودة' },
+              { value: 'archived', label: 'مؤرشف' },
+            ]}
+            onChange={(value) => onChange({ ...project, status: value as ProjectStatus })}
+          />
           <label className="block text-sm font-bold text-slate-700">لون التمييز<input type="color" value={project.accent_color || '#2563eb'} onChange={(event) => onChange({ ...project, accent_color: event.target.value })} className="mt-2 w-full h-12 p-1 bg-slate-50 border border-slate-200 rounded-xl" /></label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-[160px_1fr] gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -702,6 +746,10 @@ function TextArea({ label, value, onChange }: { label: string; value: string; on
   return <label className="block text-sm font-bold text-slate-700">{label}<textarea rows={3} value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none resize-none" /></label>;
 }
 
+function SelectField({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void }) {
+  return <label className="block text-sm font-bold text-slate-700">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-blue/10 outline-none">{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
+}
+
 function CheckField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return <label className="flex items-center gap-3 cursor-pointer text-sm font-bold text-slate-700"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="w-5 h-5 rounded-md border-slate-300 text-brand-blue focus:ring-brand-blue" />{label}</label>;
 }
@@ -728,6 +776,10 @@ function IconButton({ children, onClick, label, danger = false }: { children: Re
 
 function TabButton({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }) {
   return <button onClick={onClick} className={cn('px-4 py-2 rounded-xl border text-sm font-bold', active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200')}>{children}</button>;
+}
+
+function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return <button onClick={onClick} className={cn('px-4 py-2 rounded-full border text-sm font-bold transition-colors', active ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-brand-blue/40')}>{label}</button>;
 }
 
 function Notice({ title, text }: { title: string; text: string }) {
