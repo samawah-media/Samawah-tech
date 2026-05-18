@@ -34,8 +34,8 @@ import {
   signInAdmin,
   signInAdminWithPassword,
   signOutAdmin,
-  uploadProjectImage,
 } from '../lib/firebase';
+import { createInlineProjectImage } from '../lib/imageTools';
 import { deleteLocalLink, deleteLocalProject, saveLocalLink, saveLocalProject } from '../lib/localDrafts';
 
 function cn(...inputs: ClassValue[]) {
@@ -570,11 +570,12 @@ function ProjectModal({ project, onChange, onClose, onSubmit }: {
     setUploading(true);
 
     try {
-      const imageUrl = await uploadProjectImage(file, project.slug || project.id || 'project');
+      const imageUrl = await createInlineProjectImage(file);
       onChange({ ...project, cover_image_url: imageUrl });
+      setUploadError('تم تجهيز الصورة بدون Firebase Storage. اضغط حفظ لتثبيتها في المشروع.');
     } catch (error) {
       console.error(error);
-      setUploadError('تعذر رفع الصورة. تأكد أن قواعد Firebase Storage منشورة وأنك مسجل دخول كأدمن.');
+      setUploadError('تعذر تجهيز الصورة. جرّب صورة أصغر بصيغة JPG أو WebP.');
     } finally {
       setUploading(false);
     }
@@ -613,7 +614,7 @@ function ProjectModal({ project, onChange, onClose, onSubmit }: {
                 className="sr-only"
               />
             </label>
-            <p className="text-sm leading-7 text-slate-500">اختر صورة PNG أو JPG أو WebP. بعد انتهاء الرفع سيظهر الرابط تلقائيا في خانة مسار الصورة، ثم اضغط حفظ.</p>
+            <p className="text-sm leading-7 text-slate-500">اختر صورة PNG أو JPG أو WebP. سيتم ضغطها وحفظها داخل بيانات المشروع بدون الحاجة إلى Firebase Storage، ثم اضغط حفظ.</p>
             {uploadError ? <p className="text-sm font-bold text-rose-600">{uploadError}</p> : null}
           </div>
         </div>
