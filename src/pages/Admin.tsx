@@ -23,6 +23,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ProjectCard, ShowcaseLink } from '../types';
 import {
+  checkFirestoreAccess,
   consumeAdminRedirectResult,
   db,
   ensureFirebaseReady,
@@ -35,6 +36,7 @@ import {
   signOutAdmin,
   uploadProjectImage,
 } from '../lib/firebase';
+import { deleteLocalLink, deleteLocalProject, saveLocalLink, saveLocalProject } from '../lib/localDrafts';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -82,6 +84,7 @@ export default function Admin() {
   const [adminEmail, setAdminEmail] = useState('omarsamawah@gmail.com');
   const [adminPassword, setAdminPassword] = useState('');
   const [signingIn, setSigningIn] = useState(false);
+  const [firestoreWritable, setFirestoreWritable] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -127,6 +130,12 @@ export default function Admin() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!firebaseEnabled || !user) return;
+
+    void checkFirestoreAccess().then(setFirestoreWritable);
+  }, [firebaseEnabled, user]);
+
   const canEdit = !firebaseEnabled || Boolean(user && isAllowedAdminEmail(user.email));
   const isDemoMode = !firebaseEnabled;
 
@@ -151,7 +160,8 @@ export default function Admin() {
 
   const reportBackgroundError = (message: string, error: unknown) => {
     console.error(message, error);
-    showNotice(message);
+    setFirestoreWritable(false);
+    showNotice(`${message}. تم حفظ نسخة محلية مؤقتة فقط.`);
   };
 
   const handlePasswordSignIn = async (event: React.FormEvent) => {
@@ -197,8 +207,9 @@ export default function Admin() {
       tags: Array.isArray(editingProject.tags) ? editingProject.tags : [],
     } as ProjectCard;
 
+    saveLocalProject(projectData);
     setEditingProject(null);
-    showNotice('تم حفظ المشروع');
+    showNotice('تم حفظ المشروع محليا، وجاري مزامنته مع Firebase');
     startTransition(() => {
       setProjects((previous) => {
         const exists = previous.some((project) => project.id === projectData.id);
@@ -208,9 +219,14 @@ export default function Admin() {
     });
 
     if (db) {
-      void setDoc(doc(db, 'projects', projectData.id), projectData).catch((error) => {
-        reportBackgroundError('تعذر حفظ المشروع في Firebase', error);
-      });
+      void setDoc(doc(db, 'projects', projectData.id), projectData)
+        .then(() => {
+          setFirestoreWritable(true);
+          showNotice('تم حفظ المشروع في Firebase');
+        })
+        .catch((error) => {
+          reportBackgroundError('تعذر حفظ المشروع في Firebase', error);
+        });
     }
   };
 
@@ -228,9 +244,10 @@ export default function Admin() {
       project_ids: selectedProjectIds,
     } as ShowcaseLink;
 
+    saveLocalLink(linkData);
     setEditingLink(null);
     setSelectedProjectIds([]);
-    showNotice('تم حفظ رابط العرض');
+    showNotice('تم حفظ الرابط محليا، وجاري مزامنته مع Firebase');
     startTransition(() => {
       setLinks((previous) => {
         const exists = previous.some((item) => item.id === linkData.id);
@@ -240,36 +257,83 @@ export default function Admin() {
     });
 
     if (db) {
-      void setDoc(doc(db, 'showcase_links', linkData.id), linkData).catch((error) => {
-        reportBackgroundError('تعذر حفظ رابط العرض في Firebase', error);
-      });
+      void setDoc(doc(db, 'showcase_links', linkData.id), linkData)
+        .then(() => {
+          setFirestoreWritable(true);
+          showNotice('تم حفظ الرابط في Firebase');
+        })
+        .catch((error) => {
+          reportBackgroundError('تعذر حفظ رابط العرض في Firebase', error);
+        });
     }
   };
 
   const toggleProjectVisibility = async (project: ProjectCard) => {
     const nextValue = !project.is_visible;
-    if (db) await updateDoc(doc(db, 'projects', project.id), { is_visible: nextValue, updated_at: new Date().toISOString() });
-    setProjects((previous) => previous.map((item) => (item.id === project.id ? { ...item, is_visible: nextValue } : item)));
+    const nextProject = { ...project, is_visible: nextValue, updated_at: new Date().toISOString() };
+    saveLocalProject(nextProject);
+
+    if (db) {
+      try {
+        await updateDoc(doc(db, 'projects', project.id), { is_visible: nextValue, updated_at: nextProject.updated_at });
+        setFirestoreWritable(true);
+      } catch (error) {
+        reportBackgroundError('تعذر تحديث ظهور المشروع في Firebase', error);
+      }
+    }
+
+    setProjects((previous) => previous.map((item) => (item.id === project.id ? nextProject : item)));
   };
 
   const toggleLinkStatus = async (item: ShowcaseLink) => {
     const nextValue = !item.is_active;
-    if (db) await updateDoc(doc(db, 'showcase_links', item.id), { is_active: nextValue, updated_at: new Date().toISOString() });
-    setLinks((previous) => previous.map((linkItem) => (linkItem.id === item.id ? { ...linkItem, is_active: nextValue } : linkItem)));
+    const nextLink = { ...item, is_active: nextValue, updated_at: new Date().toISOString() };
+    saveLocalLink(nextLink);
+
+    if (db) {
+      try {
+        await updateDoc(doc(db, 'showcase_links', item.id), { is_active: nextValue, updated_at: nextLink.updated_at });
+        setFirestoreWritable(true);
+      } catch (error) {
+        reportBackgroundError('تعذر تحديث حالة الرابط في Firebase', error);
+      }
+    }
+
+    setLinks((previous) => previous.map((linkItem) => (linkItem.id === item.id ? nextLink : linkItem)));
   };
 
   const deleteProject = async (project: ProjectCard) => {
     if (!window.confirm(`حذف مشروع "${project.title_ar}"؟`)) return;
-    if (db) await deleteDoc(doc(db, 'projects', project.id));
+    deleteLocalProject(project.id);
+
+    if (db) {
+      try {
+        await deleteDoc(doc(db, 'projects', project.id));
+        setFirestoreWritable(true);
+      } catch (error) {
+        reportBackgroundError('تعذر حذف المشروع من Firebase', error);
+      }
+    }
+
     setProjects((previous) => previous.filter((item) => item.id !== project.id));
-    showNotice('تم حذف المشروع');
+    showNotice('تم حذف المشروع محليا');
   };
 
   const deleteLink = async (item: ShowcaseLink) => {
     if (!window.confirm(`حذف رابط "${item.title_ar}"؟`)) return;
-    if (db) await deleteDoc(doc(db, 'showcase_links', item.id));
+    deleteLocalLink(item.id);
+
+    if (db) {
+      try {
+        await deleteDoc(doc(db, 'showcase_links', item.id));
+        setFirestoreWritable(true);
+      } catch (error) {
+        reportBackgroundError('تعذر حذف الرابط من Firebase', error);
+      }
+    }
+
     setLinks((previous) => previous.filter((linkItem) => linkItem.id !== item.id));
-    showNotice('تم حذف الرابط');
+    showNotice('تم حذف الرابط محليا');
   };
 
   const copyLink = async (slug: string) => {
@@ -367,6 +431,12 @@ export default function Admin() {
         </header>
 
         {isDemoMode ? <Notice title="وضع تجريبي" text="Firebase غير متصل، لذلك ستظهر البيانات الافتراضية فقط." /> : null}
+        {!isDemoMode && !firestoreWritable ? (
+          <Notice
+            title="صلاحيات Firebase غير منشورة"
+            text="التعديلات تحفظ الآن كنسخة محلية في هذا المتصفح فقط. لكي تعمل لكل الزوار وتبقى بعد تغيير الجهاز، انشر قواعد Firestore وStorage الموجودة في المشروع من Firebase Console."
+          />
+        ) : null}
         {notice ? <div className="fixed bottom-5 left-5 z-[120] bg-slate-950 text-white px-5 py-3 rounded-2xl shadow-xl text-sm font-bold">{notice}</div> : null}
 
         <div className="flex flex-wrap items-center gap-3 mb-6">

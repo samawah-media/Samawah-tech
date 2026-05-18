@@ -12,10 +12,11 @@ import {
   setPersistence,
   signInWithEmailAndPassword,
 } from 'firebase/auth';
-import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, Firestore } from 'firebase/firestore';
+import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, limit, Firestore } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, FirebaseStorage } from 'firebase/storage';
 import { ProjectCard, ShowcaseLink } from '../types';
 import { FALLBACK_LINKS, SEED_PROJECTS } from '../constants';
+import { getLocalLinks, getLocalProjects } from './localDrafts';
 
 let app: FirebaseApp | null = null;
 export let db: Firestore | null = null;
@@ -86,6 +87,20 @@ function repairLinkText(link: ShowcaseLink): ShowcaseLink {
   return link;
 }
 
+function mergeProjects(base: ProjectCard[], local: ProjectCard[]) {
+  if (local.length === 0) return base;
+  const map = new Map(base.map((project) => [project.id, project]));
+  local.forEach((project) => map.set(project.id, project));
+  return Array.from(map.values()).sort((a, b) => a.sort_order - b.sort_order);
+}
+
+function mergeLinks(base: ShowcaseLink[], local: ShowcaseLink[]) {
+  if (local.length === 0) return base;
+  const map = new Map(base.map((link) => [link.id, link]));
+  local.forEach((link) => map.set(link.id, link));
+  return Array.from(map.values()).sort((a, b) => a.sort_order - b.sort_order);
+}
+
 async function initFirebase() {
   if (app) return;
   
@@ -121,8 +136,9 @@ export async function ensureFirebaseReady(): Promise<boolean> {
 
 export async function getProjects(): Promise<ProjectCard[]> {
   await initFirebase();
-  
-  if (!db) return SEED_PROJECTS;
+
+  const localProjects = getLocalProjects();
+  if (!db) return mergeProjects(SEED_PROJECTS, localProjects);
 
   try {
     const q = query(collection(db, 'projects'), orderBy('sort_order', 'asc'));
@@ -130,10 +146,10 @@ export async function getProjects(): Promise<ProjectCard[]> {
     const projects = snapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() } as ProjectCard))
       .map(repairProjectText);
-    return projects.length > 0 ? projects : SEED_PROJECTS;
+    return mergeProjects(projects.length > 0 ? projects : SEED_PROJECTS, localProjects);
   } catch (error) {
     console.error('Error fetching projects:', error);
-    return SEED_PROJECTS;
+    return mergeProjects(SEED_PROJECTS, localProjects);
   }
 }
 
@@ -157,7 +173,8 @@ export async function getProjectById(projectId: string): Promise<ProjectCard | n
 export async function getShowcaseLinks(): Promise<ShowcaseLink[]> {
   await initFirebase();
 
-  if (!db) return FALLBACK_LINKS;
+  const localLinks = getLocalLinks();
+  if (!db) return mergeLinks(FALLBACK_LINKS, localLinks);
 
   try {
     const q = query(collection(db, 'showcase_links'), orderBy('sort_order', 'asc'));
@@ -165,10 +182,10 @@ export async function getShowcaseLinks(): Promise<ShowcaseLink[]> {
     const links = snapshot.docs
       .map((docRef) => ({ id: docRef.id, ...(docRef.data() as Omit<ShowcaseLink, 'id'>) }))
       .map(repairLinkText);
-    return links.length > 0 ? links : FALLBACK_LINKS;
+    return mergeLinks(links.length > 0 ? links : FALLBACK_LINKS, localLinks);
   } catch (error) {
     console.error('Error fetching showcase links:', error);
-    return FALLBACK_LINKS;
+    return mergeLinks(FALLBACK_LINKS, localLinks);
   }
 }
 
@@ -186,6 +203,19 @@ export async function getShowcaseLinkBySlug(slug: string): Promise<ShowcaseLink 
 
 export function isFirebaseReady(): boolean {
   return Boolean(db && auth);
+}
+
+export async function checkFirestoreAccess(): Promise<boolean> {
+  await initFirebase();
+  if (!db) return false;
+
+  try {
+    await getDocs(query(collection(db, 'projects'), limit(1)));
+    return true;
+  } catch (error) {
+    console.error('Firestore access check failed:', error);
+    return false;
+  }
 }
 
 export function isAllowedAdminEmail(email: string | null): boolean {
