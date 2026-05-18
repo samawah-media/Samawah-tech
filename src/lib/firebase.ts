@@ -1,5 +1,16 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, User, signOut } from 'firebase/auth';
+import {
+  getAuth,
+  Auth,
+  signInWithRedirect,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  User,
+  signOut,
+  getRedirectResult,
+  browserLocalPersistence,
+  setPersistence,
+} from 'firebase/auth';
 import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, Firestore } from 'firebase/firestore';
 import { ProjectCard, ShowcaseLink } from '../types';
 import { FALLBACK_LINKS, SEED_PROJECTS } from '../constants';
@@ -77,6 +88,7 @@ async function initFirebase() {
           ? getFirestore(app, firebaseConfig.firestoreDatabaseId) 
           : getFirestore(app);
         auth = getAuth(app);
+        await setPersistence(auth, browserLocalPersistence);
       }
   } catch (e) {
     console.warn('Firebase config not loaded, using seed data.');
@@ -169,6 +181,12 @@ export function onAuthUserChanged(callback: (user: User | null) => void): () => 
     return () => {};
   }
   return onAuthStateChanged(auth, callback);
+}
+
+export async function consumeAdminRedirectResult() {
+  await initFirebase();
+  if (!auth) return null;
+  return getRedirectResult(auth);
 }
 
 export async function signInAdmin() {

@@ -22,6 +22,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ProjectCard, ShowcaseLink } from '../types';
 import {
+  consumeAdminRedirectResult,
   db,
   ensureFirebaseReady,
   getProjects,
@@ -89,6 +90,18 @@ export default function Admin() {
       if (!ready) {
         setAuthLoading(false);
         return;
+      }
+
+      try {
+        const redirectResult = await consumeAdminRedirectResult();
+        if (active && redirectResult?.user) {
+          setUser(redirectResult.user);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'تعذر إكمال تسجيل الدخول بعد الرجوع من Google.';
+        if (active) {
+          setAuthError(message);
+        }
       }
 
       stop = onAuthUserChanged((userState) => {
