@@ -86,7 +86,7 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
     const rotate = offset * 10;
     const opacity = isActive ? 1 : 0.42 - Math.abs(offset) * 0.08;
     const zIndex = 10 - Math.abs(offset);
-    const y = isActive ? -70 : 65 + Math.abs(offset) * 24;
+    const y = isActive ? -42 : 54 + Math.abs(offset) * 18;
 
     return { x, scale, rotate, opacity, zIndex, y, isVisible, isActive };
   };
@@ -103,7 +103,7 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
   }
 
   return (
-    <div className="relative w-full h-[640px] md:h-[700px] flex flex-col items-center justify-center overflow-hidden py-8" dir="rtl">
+    <div className="relative w-full h-[500px] md:h-[700px] flex flex-col items-center justify-center overflow-hidden py-2 md:py-8" dir="rtl">
       <div className="relative w-full max-w-7xl h-full flex items-center justify-center">
         <AnimatePresence initial={false} custom={direction}>
           {projects.map((project, index) => {
@@ -128,7 +128,7 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
                   mass: 0.8,
                 }}
                 className={cn(
-                  'absolute flex flex-col w-[84vw] max-w-[550px] aspect-[16/9] rounded-[28px] overflow-hidden cursor-pointer bg-white transition-shadow duration-300 group/card',
+                  'absolute flex flex-col w-[90vw] md:w-[84vw] max-w-[550px] aspect-[16/9] rounded-[22px] md:rounded-[28px] overflow-hidden cursor-pointer bg-white transition-shadow duration-300 group/card',
                   isActive
                     ? 'shadow-[0_40px_90px_-18px_rgba(15,23,42,0.45)] ring-8 ring-white'
                     : 'shadow-xl grayscale-[35%] hover:grayscale-0',
@@ -169,7 +169,7 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
 
                   <div
                     className={cn(
-                      'absolute inset-x-0 bottom-0 z-20 p-5 md:p-8 translate-y-5 transition-all duration-300',
+                      'absolute inset-x-0 bottom-0 z-20 p-4 md:p-8 translate-y-5 transition-all duration-300',
                       isActive ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover/card:opacity-100 group-hover/card:translate-y-0',
                     )}
                   >
@@ -184,14 +184,14 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
                       ))}
                     </div>
 
-                    <h3 className="text-2xl md:text-4xl font-black text-white leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)]">
+                    <h3 className="text-xl sm:text-2xl md:text-4xl font-black text-white leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)]">
                       {project.title_ar}
                     </h3>
-                    <p className="mt-2 text-white/90 text-sm md:text-base leading-7 max-w-xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
+                    <p className="mt-2 text-white/90 text-xs sm:text-sm md:text-base leading-6 md:leading-7 max-w-xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
                       {project.short_description_ar}
                     </p>
 
-                    <div className="mt-5 flex items-center justify-between gap-4">
+                    <div className="mt-3 md:mt-5 flex items-center justify-between gap-4">
                       <span className="inline-flex items-center gap-2 text-white text-sm md:text-base font-bold">
                         عرض المشروع
                         <ExternalLink size={17} />
@@ -208,13 +208,13 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
         </AnimatePresence>
       </div>
 
-      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-3 md:px-10 pointer-events-none z-50">
+      <div className="absolute inset-x-0 top-[44%] md:top-1/2 -translate-y-1/2 flex justify-between px-1 md:px-10 pointer-events-none z-50">
         <button
           onClick={(event) => {
             event.stopPropagation();
             prev();
           }}
-          className="pointer-events-auto p-2 group"
+          className="pointer-events-auto rounded-full bg-white/95 p-2 shadow-lg ring-1 ring-slate-200/80 transition-transform active:scale-95 md:bg-transparent md:shadow-none md:ring-0 group"
           aria-label="السابق"
         >
           <PixelArrow direction="left" />
@@ -224,14 +224,14 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
             event.stopPropagation();
             next();
           }}
-          className="pointer-events-auto p-2 group"
+          className="pointer-events-auto rounded-full bg-white/95 p-2 shadow-lg ring-1 ring-slate-200/80 transition-transform active:scale-95 md:bg-transparent md:shadow-none md:ring-0 group"
           aria-label="التالي"
         >
           <PixelArrow direction="right" />
         </button>
       </div>
 
-      <div className="mt-10 flex gap-2">
+      <div className="mt-4 md:mt-10 flex gap-2">
         {projects.map((project, index) => (
           <button
             key={project.id}
@@ -250,22 +250,14 @@ export default function ShowcaseCarousel({ projects }: ShowcaseCarouselProps) {
 
 function PixelArrow({ direction }: { direction: 'left' | 'right' }) {
   return (
-    <svg
-      width="48"
-      height="48"
-      viewBox="0 0 48 48"
-      fill="currentColor"
+    <ChevronRight
+      size={28}
+      strokeWidth={2.7}
       className={cn(
-        'text-slate-900 transition-transform duration-200 group-active:scale-95 group-hover:text-brand-blue',
+        'text-slate-900 transition-colors duration-200 group-hover:text-brand-blue md:h-12 md:w-12',
         direction === 'left' ? 'rotate-180' : '',
       )}
       aria-hidden="true"
-    >
-      <rect x="12" y="20" width="4" height="8" />
-      <rect x="16" y="16" width="4" height="16" />
-      <rect x="20" y="12" width="4" height="24" />
-      <rect x="24" y="8" width="4" height="32" />
-      <rect x="28" y="20" width="12" height="8" />
-    </svg>
+    />
   );
 }

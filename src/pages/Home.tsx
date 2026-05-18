@@ -4,6 +4,7 @@ import ShowcaseCarousel from '../components/ShowcaseCarousel';
 import { getProjects, getShowcaseLinkBySlug } from '../lib/firebase';
 import { ProjectCard, ShowcaseLink } from '../types';
 import { motion } from 'motion/react';
+import { FALLBACK_LINKS, SEED_PROJECTS } from '../constants';
 
 function buildOrderedProjectsFromLink(
   publicProjects: ProjectCard[],
@@ -22,22 +23,47 @@ function isLinkActive(link: ShowcaseLink | null) {
   return true;
 }
 
+function getPublicProjects(projects: ProjectCard[]) {
+  return projects.filter((project) => project.is_visible && project.status === 'published');
+}
+
+function buildInitialState(slug?: string) {
+  const publicProjects = getPublicProjects(SEED_PROJECTS);
+  if (!slug) return { link: null, projects: publicProjects, loading: false };
+
+  const fallbackLink = FALLBACK_LINKS.find((item) => item.slug === slug) || null;
+  if (!isLinkActive(fallbackLink)) return { link: null, projects: [], loading: true };
+
+  const linkedProjects = buildOrderedProjectsFromLink(publicProjects, fallbackLink.project_ids);
+  return {
+    link: fallbackLink,
+    projects: linkedProjects.length > 0 ? linkedProjects : publicProjects,
+    loading: false,
+  };
+}
+
 export default function Home() {
   const { slug } = useParams();
-  const [projects, setProjects] = useState<ProjectCard[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [link, setLink] = useState<ShowcaseLink | null>(null);
+  const initialState = buildInitialState(slug);
+  const [projects, setProjects] = useState<ProjectCard[]>(initialState.projects);
+  const [loading, setLoading] = useState(initialState.loading);
+  const [link, setLink] = useState<ShowcaseLink | null>(initialState.link);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
+    let active = true;
+    const nextInitialState = buildInitialState(slug);
+
+    setProjects(nextInitialState.projects);
+    setLink(nextInitialState.link);
+    setLoading(nextInitialState.loading);
     setNotFound(false);
 
     (async () => {
       const all = await getProjects();
-      const publicProjects = all.filter(
-        (project) => project.is_visible && project.status === 'published',
-      );
+      if (!active) return;
+
+      const publicProjects = getPublicProjects(all);
 
       if (!slug) {
         setLink(null);
@@ -47,6 +73,8 @@ export default function Home() {
       }
 
       const found = await getShowcaseLinkBySlug(slug);
+      if (!active) return;
+
       if (!isLinkActive(found)) {
         setLink(null);
         setProjects([]);
@@ -64,6 +92,10 @@ export default function Home() {
       setProjects(linkedProjects.length > 0 ? linkedProjects : publicProjects);
       setLoading(false);
     })();
+
+    return () => {
+      active = false;
+    };
   }, [slug]);
 
   if (loading) {
@@ -99,7 +131,7 @@ export default function Home() {
       <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-red/5 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-[20%] left-[-5%] w-[30%] h-[30%] bg-brand-yellow/5 rounded-full blur-[100px] pointer-events-none" />
 
-      <section className="pt-20 md:pt-24 pb-8 px-4 text-center relative z-10">
+      <section className="pt-10 md:pt-24 pb-3 md:pb-8 px-4 text-center relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -108,7 +140,7 @@ export default function Home() {
           <span className="inline-block px-4 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-bold mb-4">
             مشاريع سماوة الرقمية
           </span>
-          <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-5">
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-slate-900 mb-3 md:mb-5">
             {title}
           </h1>
           {subTitle && (
