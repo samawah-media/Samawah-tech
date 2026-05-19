@@ -24,7 +24,7 @@ function buildOrderedProjectsFromLink(
 }
 
 function shouldShowAllProjects(link: ShowcaseLink | null) {
-  return !link || ['default', 'projects'].includes(link.slug);
+  return !link || link.slug === 'default';
 }
 
 function isLinkActive(link: ShowcaseLink | null) {
