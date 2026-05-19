@@ -16,13 +16,19 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-function getGridClass(projectCount: number) {
-  if (projectCount <= 1) return 'grid-cols-1 grid-rows-1';
-  if (projectCount === 2) return 'grid-cols-1 grid-rows-2 sm:grid-cols-2 sm:grid-rows-1';
-  if (projectCount === 3) return 'grid-cols-1 grid-rows-3 sm:grid-cols-3 sm:grid-rows-1';
-  if (projectCount === 4) return 'grid-cols-2 grid-rows-2';
-  if (projectCount <= 6) return 'grid-cols-2 grid-rows-3 sm:grid-cols-3 sm:grid-rows-2';
-  return 'grid-cols-2 grid-rows-4 sm:grid-cols-4 sm:grid-rows-2';
+function getGridLayout(projectCount: number) {
+  if (projectCount <= 1) return { columns: 1, rows: 1 };
+  if (projectCount === 2) return { columns: 2, rows: 1 };
+  if (projectCount === 3) return { columns: 3, rows: 1 };
+  if (projectCount === 4) return { columns: 2, rows: 2 };
+  if (projectCount <= 6) return { columns: 3, rows: 2 };
+  if (projectCount <= 9) return { columns: 3, rows: 3 };
+  if (projectCount <= 10) return { columns: 5, rows: 2 };
+  if (projectCount <= 12) return { columns: 4, rows: 3 };
+
+  const columns = Math.ceil(Math.sqrt(projectCount));
+  const rows = Math.ceil(projectCount / columns);
+  return { columns, rows };
 }
 
 export default function ShowcaseCarousel({ projects, mode = 'grid' }: ShowcaseCarouselProps) {
@@ -89,8 +95,16 @@ function ProjectGrid({
   onShare: (event: MouseEvent, project: ProjectCard) => void;
   copiedId: string | null;
 }) {
+  const gridLayout = getGridLayout(projects.length);
+
   return (
-    <div className={cn('grid h-full w-full gap-px overflow-hidden bg-white/10', getGridClass(projects.length))}>
+    <div
+      className="grid h-full w-full gap-px overflow-hidden bg-white/10"
+      style={{
+        gridTemplateColumns: `repeat(${gridLayout.columns}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${gridLayout.rows}, minmax(0, 1fr))`,
+      }}
+    >
       {projects.map((project, index) => (
         <motion.a
           key={project.id}

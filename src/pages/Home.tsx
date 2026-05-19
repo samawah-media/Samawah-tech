@@ -23,6 +23,10 @@ function buildOrderedProjectsFromLink(
   return projectIds.map((id) => map.get(id)).filter(Boolean) as ProjectCard[];
 }
 
+function shouldShowAllProjects(link: ShowcaseLink | null) {
+  return !link || ['default', 'projects'].includes(link.slug);
+}
+
 function isLinkActive(link: ShowcaseLink | null) {
   if (!link || !link.is_active) return false;
 
@@ -44,6 +48,10 @@ function buildInitialState(slug?: string) {
 
   const fallbackLink = FALLBACK_LINKS.find((item) => item.slug === slug) || null;
   if (!isLinkActive(fallbackLink)) return { link: null, projects: [], loading: true };
+
+  if (shouldShowAllProjects(fallbackLink)) {
+    return { link: fallbackLink, projects: publicProjects, loading: false };
+  }
 
   const linkedProjects = buildOrderedProjectsFromLink(publicProjects, fallbackLink.project_ids);
   return {
@@ -105,7 +113,13 @@ export default function Home() {
       );
 
       setLink(found as ShowcaseLink);
-      setProjects(linkedProjects.length > 0 ? linkedProjects : publicProjects);
+      setProjects(
+        shouldShowAllProjects(found as ShowcaseLink)
+          ? publicProjects
+          : linkedProjects.length > 0
+            ? linkedProjects
+            : publicProjects,
+      );
       setLoading(false);
     })();
 
